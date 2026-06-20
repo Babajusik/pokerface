@@ -1,0 +1,21 @@
+# Render Blueprint — бесплатный постоянный хостинг (без карты).
+# Деплоит один web-сервис: Node-сервер раздаёт собранный web + игра + токены.
+#
+# Как использовать: код в GitHub-репозитории -> Render -> New -> Blueprint ->
+# выбрать репозиторий. Render прочитает этот файл и создаст сервис.
+# Значения LIVEKIT_* спросит при создании (sync: false).
+
+services:
+  - type: web
+    name: pokerface
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false

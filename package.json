@@ -1,0 +1,19 @@
+{
+  "name": "pokerface",
+  "private": true,
+  "version": "0.0.0",
+  "description": "PokerFace — онлайн-игра «не улыбнись» (iOS/Android)",
+  "workspaces": [
+    "packages/*",
+    "server/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "server": "npm run dev --workspace=@pokerface/game-server",
+    "bots": "npm run bots --workspace=@pokerface/game-server",
+    "app": "npm run web --workspace=@pokerface/mobile",
+    "build:web": "npm run export --workspace=@pokerface/mobile",
+    "build": "npm run build:web",
+    "start": "npm run start --workspace=@pokerface/game-server"
+  }
+}

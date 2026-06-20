@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PokerFace — прототип детектора улыбки</title>
+  <style>
+    :root {
+      --bg: #0e1116; --panel: #171b22; --border: #262c36;
+      --text: #e6e9ef; --muted: #8b95a5; --accent: #5b8cff;
+      --yellow: #f2c744; --red: #ef4444; --green: #34d399;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg); color: var(--text);
+      display: flex; justify-content: center; padding: 24px;
+    }
+    .wrap { width: 100%; max-width: 980px; }
+    h1 { font-size: 22px; margin: 0 0 4px; }
+    .sub { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
+    .panel { background: var(--panel); border: 1px solid var(--border);
+      border-radius: 14px; padding: 16px; }
+    .video-wrap { position: relative; border-radius: 12px; overflow: hidden;
+      background: #000; aspect-ratio: 4/3; }
+    video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+    .face-state { position: absolute; top: 10px; left: 10px; font-size: 13px;
+      background: rgba(0,0,0,.55); padding: 4px 10px; border-radius: 20px; }
+    .face-state.lost { background: rgba(239,68,68,.85); }
+    .status { margin-top: 12px; font-size: 14px; padding: 10px 12px;
+      border-radius: 10px; background: #1f2530; border: 1px solid var(--border); }
+    .status.loading { color: var(--accent); }
+    .status.ready, .status.playing { color: var(--green); }
+    .status.error, .status.eliminated { color: var(--red); }
+    .btns { display: flex; gap: 10px; margin-top: 12px; }
+    button { flex: 1; padding: 12px; border-radius: 10px; border: 1px solid var(--border);
+      background: var(--accent); color: #fff; font-size: 15px; font-weight: 600;
+      cursor: pointer; }
+    button.secondary { background: #232a36; color: var(--text); }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+
+    .label { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+    .meter { position: relative; height: 28px; background: #11151c;
+      border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .meter-fill { height: 100%; width: 0%; background: var(--green);
+      transition: width .08s linear; }
+    .meter-fill.over { background: var(--red); }
+    .threshold-line { position: absolute; top: -4px; bottom: -4px; width: 2px;
+      background: #fff; left: 70%; }
+    .meter-value { position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+      font-size: 13px; font-weight: 700; mix-blend-mode: difference; }
+
+    .control { margin-bottom: 16px; }
+    .control .row { display: flex; justify-content: space-between; font-size: 13px; }
+    input[type=range] { width: 100%; }
+
+    .cards { display: flex; gap: 10px; margin-top: 8px; }
+    .card-badge { flex: 1; text-align: center; padding: 14px; border-radius: 10px;
+      font-weight: 700; font-size: 14px; border: 1px solid var(--border); }
+    .card-badge.empty { color: var(--muted); background: #11151c; }
+    .card-badge.yellow { background: rgba(242,199,68,.18); color: var(--yellow);
+      border-color: var(--yellow); }
+    .card-badge.red { background: rgba(239,68,68,.18); color: var(--red);
+      border-color: var(--red); }
+
+    .log { margin-top: 8px; height: 200px; overflow-y: auto; font-size: 13px;
+      font-family: ui-monospace, monospace; background: #0b0e13;
+      border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
+    .log-line { padding: 2px 0; border-bottom: 1px solid #161b22; }
+    .log-info { color: var(--muted); }
+    .log-warn { color: var(--yellow); }
+    .log-danger { color: var(--red); }
+    .hint { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>🎭 PokerFace — прототип детектора улыбки</h1>
+    <p class="sub">MediaPipe Face Landmarker + веб-камера. Тюним пороги на ПК, потом
+      переносим smile-engine.js в мобильную версию.</p>
+
+    <div class="grid">
+      <!-- Левая колонка: камера -->
+      <div class="panel">
+        <div class="video-wrap">
+          <video id="video" autoplay playsinline muted></video>
+          <div id="faceState" class="face-state">камера выключена</div>
+        </div>
+        <div id="status" class="status">Нажми «Включить камеру», чтобы загрузить модель.</div>
+        <div class="btns">
+          <button id="startBtn">▶ Включить камеру</button>
+          <button id="resetBtn" class="secondary">↺ Сброс раунда</button>
+        </div>
+        <p class="hint">Камера и распознавание работают локально в браузере —
+          видео никуда не отправляется. Нужен доступ в интернет для загрузки модели
+          (один раз).</p>
+      </div>
+
+      <!-- Правая колонка: метрики и настройки -->
+      <div class="panel">
+        <div class="label">Вероятность улыбки сейчас</div>
+        <div class="meter">
+          <div id="meterFill" class="meter-fill"></div>
+          <div id="thresholdLine" class="threshold-line"></div>
+          <div id="meterValue" class="meter-value">—</div>
+        </div>
+        <p class="hint">Белая черта — порог срабатывания. Заходишь за неё несколько
+          кадров подряд → улыбка засчитана.</p>
+
+        <hr style="border-color:var(--border); margin:16px 0;">
+
+        <div class="control">
+          <div class="row"><span>Порог улыбки</span><span id="thresholdOut">0.70</span></div>
+          <input type="range" id="threshold" min="0.3" max="0.95" step="0.01" value="0.4" />
+        </div>
+        <div class="control">
+          <div class="row"><span>Кадров подряд для срабатывания</span><span id="framesOut">3</span></div>
+          <input type="range" id="frames" min="1" max="10" step="1" value="5" />
+        </div>
+        <div class="control">
+          <div class="row"><span>Кулдаун между карточками</span><span id="cooldownOut">2500 мс</span></div>
+          <input type="range" id="cooldown" min="500" max="5000" step="100" value="2500" />
+        </div>
+
+        <div class="label">Карточки</div>
+        <div id="cards" class="cards"></div>
+      </div>
+    </div>
+
+    <!-- Лог событий -->
+    <div class="panel" style="margin-top:16px;">
+      <div class="label">Лог событий</div>
+      <div id="log" class="log"></div>
+    </div>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
