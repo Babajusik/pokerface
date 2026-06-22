@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { View, Text, Pressable, StyleSheet, ScrollView } from "react-native";
 import { colors } from "../theme";
 import { LiveKitVideo } from "../video/LiveKitVideo";
+import { playSound } from "../sound";
 import type { GameSnapshot } from "../net/useGame";
 
 // Игровой экран: видео-сетка LiveKit (камеры всех) + детект улыбки по своей
@@ -11,12 +12,14 @@ export function GameScreen({
   mySessionId,
   roomId,
   onSmile,
+  onRematch,
   onLeave,
 }: {
   snapshot: GameSnapshot;
   mySessionId: string;
   roomId: string;
   onSmile: () => void;
+  onRematch: () => void;
   onLeave: () => void;
 }) {
   const me = snapshot.players.find((p) => p.id === mySessionId);
@@ -24,6 +27,19 @@ export function GameScreen({
   const winner = snapshot.players.find((p) => p.id === snapshot.winnerId);
   const iWon = snapshot.winnerId === mySessionId;
   const playing = snapshot.phase === "playing" && !me?.eliminated;
+
+  // Звуки на карточку и конец игры
+  const prevCards = useRef(0);
+  const prevPhase = useRef(snapshot.phase);
+  useEffect(() => {
+    const cards = me?.cards ?? 0;
+    if (cards > prevCards.current) playSound(cards >= 2 ? "red" : "yellow");
+    prevCards.current = cards;
+    if (snapshot.phase !== prevPhase.current) {
+      if (snapshot.phase === "game_over") playSound(iWon ? "win" : "lose");
+      prevPhase.current = snapshot.phase;
+    }
+  }, [snapshot, me?.cards, iWon]);
 
   return (
     <View style={styles.wrap}>
@@ -52,6 +68,12 @@ export function GameScreen({
           <Text style={styles.resultText}>
             {iWon ? "Ты победил! Железное лицо." : `Победитель: ${winner?.name || "никто"}`}
           </Text>
+          <Pressable
+            style={({ pressed }) => [styles.rematchBtn, pressed && { transform: [{ scale: 0.97 }] }]}
+            onPress={onRematch}
+          >
+            <Text style={styles.rematchText}>↻ Реванш</Text>
+          </Pressable>
         </View>
       ) : me?.eliminated ? (
         <View style={styles.resultBox}>
@@ -93,4 +115,12 @@ const styles = StyleSheet.create({
   resultBox: { alignItems: "center", paddingVertical: 20 },
   resultEmoji: { fontSize: 56 },
   resultText: { color: colors.text, fontSize: 18, fontWeight: "700", marginTop: 8 },
+  rematchBtn: {
+    marginTop: 16,
+    backgroundColor: colors.accent,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 14,
+  },
+  rematchText: { color: "#06201d", fontSize: 16, fontWeight: "800" },
 });

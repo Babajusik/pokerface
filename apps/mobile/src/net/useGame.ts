@@ -87,6 +87,10 @@ export function useGame() {
     roomRef.current?.send(ClientMsg.StartGame);
   }, []);
 
+  const rematch = useCallback(() => {
+    roomRef.current?.send(ClientMsg.Rematch);
+  }, []);
+
   const smile = useCallback(() => {
     roomRef.current?.send(ClientMsg.SmileDetected, { confidence: 0.9, ts: Date.now() });
   }, []);
@@ -95,5 +99,5 @@ export function useGame() {
     roomRef.current?.leave();
   }, []);
 
-  return { status, error, snapshot, mySessionId, roomId, connect, setReady, startGame, smile, leave };
+  return { status, error, snapshot, mySessionId, roomId, connect, setReady, startGame, rematch, smile, leave };
 }

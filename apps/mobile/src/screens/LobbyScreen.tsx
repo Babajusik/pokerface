@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, Pressable, StyleSheet, ScrollView } from "react-native";
 import { colors } from "../theme";
 import { LiveKitVideo } from "../video/LiveKitVideo";
+import { playSound } from "../sound";
 import type { GameSnapshot } from "../net/useGame";
 
 export function LobbyScreen({
@@ -23,6 +24,22 @@ export function LobbyScreen({
   const isHost = snapshot.hostId === mySessionId;
   const allReady = snapshot.players.length >= 2 && snapshot.players.every((p) => p.ready);
   const counting = snapshot.phase === "countdown";
+
+  // Локальный отсчёт 3-2-1 (все входят в countdown одновременно)
+  const [count, setCount] = useState(3);
+  useEffect(() => {
+    if (!counting) return;
+    setCount(3);
+    playSound("tick");
+    let n = 3;
+    const iv = setInterval(() => {
+      n -= 1;
+      setCount(n);
+      if (n > 0) playSound("tick");
+      else { playSound("go"); clearInterval(iv); }
+    }, 1000);
+    return () => clearInterval(iv);
+  }, [counting]);
 
   return (
     <View style={styles.wrap}>
@@ -46,7 +63,7 @@ export function LobbyScreen({
 
       {counting ? (
         <View style={styles.countdownBox}>
-          <Text style={styles.countdownText}>Игра начинается… 3 · 2 · 1</Text>
+          <Text style={styles.countdownBig}>{count > 0 ? count : "GO!"}</Text>
         </View>
       ) : (
         <View style={styles.controls}>
@@ -90,6 +107,6 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.4 },
   btnText: { color: colors.text, fontSize: 16, fontWeight: "700" },
   hint: { color: colors.muted, textAlign: "center", marginTop: 10, fontSize: 13 },
-  countdownBox: { padding: 20, alignItems: "center" },
-  countdownText: { color: colors.green, fontSize: 20, fontWeight: "800" },
+  countdownBox: { padding: 16, alignItems: "center" },
+  countdownBig: { color: colors.accent, fontSize: 64, fontWeight: "900", letterSpacing: -2 },
 });

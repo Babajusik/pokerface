@@ -29,6 +29,7 @@ export default function App() {
           mySessionId={mySessionId}
           roomId={roomId}
           onSmile={game.smile}
+          onRematch={game.rematch}
           onLeave={game.leave}
         />
       ) : (

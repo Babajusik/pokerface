@@ -17,6 +17,7 @@ export class GameRoom extends Room<GameState> {
     });
 
     this.onMessage(ClientMsg.StartGame, (client) => this.tryStart(client));
+    this.onMessage(ClientMsg.Rematch, () => this.rematch());
     this.onMessage(ClientMsg.SmileDetected, (client) => this.handleSmile(client));
 
     this.onMessage(ClientMsg.FaceLost, (client) => {
@@ -72,6 +73,19 @@ export class GameRoom extends Room<GameState> {
     }
     this.state.winnerId = "";
     this.setPhase(Phase.Playing);
+  }
+
+  private rematch() {
+    if (this.state.phase !== Phase.GameOver) return;
+    for (const p of this.state.players.values()) {
+      p.cards = 0;
+      p.eliminated = false;
+      p.ready = false;
+      p.survivedMs = 0;
+      p.lastCardAt = 0;
+    }
+    this.state.winnerId = "";
+    this.setPhase(Phase.Lobby);
   }
 
   private handleSmile(client: Client) {

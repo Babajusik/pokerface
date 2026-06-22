@@ -16,6 +16,7 @@ export const ClientMsg = {
   SmileDetected: "smile_detected",
   FaceLost: "face_lost",
   FaceFound: "face_found",
+  Rematch: "rematch",
 } as const;
 
 /** Сервер → Клиент (поверх авто-синка состояния комнаты). */
