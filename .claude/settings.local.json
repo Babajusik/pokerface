@@ -83,7 +83,8 @@
       "Bash(mkdir -p \"/c/Users/Nick/headroom-py313\")",
       "Bash(tar -xzf py313.tar.gz -C \"/c/Users/Nick/headroom-py313\")",
       "PowerShell($dlls = \"vcruntime140.dll\",\"vcruntime140_1.dll\",\"msvcp140.dll\"; foreach\\($d in $dlls\\){ $p=\"C:\\\\Windows\\\\System32\\\\$d\"; if\\(Test-Path $p\\){ \"{0}  {1}\" -f $d,\\(Get-Item $p\\).VersionInfo.ProductVersion } else { \"$d  ОТСУТСТВУЕТ\" } }; Write-Output \"--- VCRedist installed? ---\"; Get-ItemProperty \"HKLM:\\\\SOFTWARE\\\\Microsoft\\\\VisualStudio\\\\14.0\\\\VC\\\\Runtimes\\\\x64\" -ErrorAction SilentlyContinue | Select-Object Version,Installed)",
-      "Bash(curl -s --max-time 40 https://pokerface-ge2s.onrender.com/)"
+      "Bash(curl -s --max-time 40 https://pokerface-ge2s.onrender.com/)",
+      "Bash(curl -s --compressed --max-time 60 https://pokerface-ge2s.onrender.com/)"
     ]
   }
 }

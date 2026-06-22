@@ -316,16 +316,6 @@ export function LiveKitVideo({
         <Text style={styles.note}>Видео недоступно ({errMsg}) — игра работает, детект тоже.</Text>
       )}
 
-      {/* скрытое видео для детекта по локальной камере */}
-      {detectActive &&
-        React.createElement("video", {
-          ref: detectVideoRef,
-          autoPlay: true,
-          playsInline: true,
-          muted: true,
-          style: { display: "none" },
-        })}
-
       <View style={styles.grid}>
         {players.map((p) => {
           const stream = streamFor(p.id);
@@ -345,6 +335,8 @@ export function LiveKitVideo({
                       muted: true,
                       ref: (el: HTMLVideoElement | null) => {
                         if (el && el.srcObject !== stream) el.srcObject = stream;
+                        // детект гоним по своему ВИДИМОМУ видео (скрытое не декодируется)
+                        if (isMe) detectVideoRef.current = el;
                       },
                       style: {
                         width: "100%",

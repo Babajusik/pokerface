@@ -40,7 +40,7 @@ export function HomeScreen({
         {connecting ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.buttonText}>Войти в лобби</Text>
+          <Text style={styles.buttonText}>🎮 Играть</Text>
         )}
       </Pressable>
 
