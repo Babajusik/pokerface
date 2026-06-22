@@ -45,7 +45,9 @@
       "Bash(cd \"/c/Users/Nick/Big Game\")",
       "Bash(curl -s -H 'Authorization: token __TRACKED_VAR__' https://api.github.com/user)",
       "Bash(curl -s -o /dev/null -w 'GET / -> %{http_code}\\\\n' --max-time 60 https://pokerface-ge2s.onrender.com/)",
-      "Bash(curl -s -X POST --max-time 60 -H 'Content-Type: application/json' https://pokerface-ge2s.onrender.com/matchmake/joinOrCreate/game -d '{}' -w '\\\\nmatchmake -> %{http_code}\\\\n')"
+      "Bash(curl -s -X POST --max-time 60 -H 'Content-Type: application/json' https://pokerface-ge2s.onrender.com/matchmake/joinOrCreate/game -d '{}' -w '\\\\nmatchmake -> %{http_code}\\\\n')",
+      "Bash(mkdir -p \"/c/Users/Nick/.claude/skills\")",
+      "Bash(cp -r /tmp/taste-skill/skills/* \"/c/Users/Nick/.claude/skills/\")"
     ]
   }
 }

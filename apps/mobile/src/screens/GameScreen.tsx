@@ -62,7 +62,10 @@ export function GameScreen({
         <View style={styles.devArea}>
           <Text style={styles.cardsLine}>Карточки: {me ? `${me.cards}/2` : "—"}</Text>
           <Text style={styles.devLabel}>запасная кнопка (если камера не сработала):</Text>
-          <Pressable style={styles.smileBtn} onPress={onSmile}>
+          <Pressable
+            style={({ pressed }) => [styles.smileBtn, pressed && { transform: [{ scale: 0.96 }] }]}
+            onPress={onSmile}
+          >
             <Text style={styles.smileText}>😀 Улыбнуться</Text>
           </Pressable>
         </View>
@@ -74,7 +77,7 @@ export function GameScreen({
 const styles = StyleSheet.create({
   wrap: { flex: 1, padding: 16 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  title: { color: colors.text, fontSize: 24, fontWeight: "800" },
+  title: { color: colors.text, fontSize: 28, fontWeight: "900", letterSpacing: -0.8 },
   leave: { color: colors.muted, fontSize: 15 },
   scroll: { paddingVertical: 10 },
   devArea: { alignItems: "center", paddingVertical: 12 },

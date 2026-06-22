@@ -58,7 +58,13 @@ export function LiveKitVideo({
         const { token, url: wsUrl } = await res.json();
         if (cancelled) return;
 
-        const room = new Room({ adaptiveStream: true, dynacast: true });
+        // iceTransportPolicy:"relay" — гнать медиа через TURN по TLS/443,
+        // чтобы видео работало в сетях, режущих UDP (иначе нужен VPN).
+        const room = new Room({
+          adaptiveStream: true,
+          dynacast: true,
+          rtcConfig: { iceTransportPolicy: "relay" },
+        });
         roomRef.current = room;
         room
           .on(RoomEvent.TrackSubscribed, rerender)

@@ -29,7 +29,11 @@ export function HomeScreen({
       />
 
       <Pressable
-        style={[styles.button, (!name.trim() || connecting) && styles.disabled]}
+        style={({ pressed }) => [
+          styles.button,
+          pressed && styles.buttonPressed,
+          (!name.trim() || connecting) && styles.disabled,
+        ]}
         disabled={!name.trim() || connecting}
         onPress={() => onJoin(name.trim())}
       >
@@ -47,9 +51,9 @@ export function HomeScreen({
 
 const styles = StyleSheet.create({
   wrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
-  logo: { fontSize: 64 },
-  title: { color: colors.text, fontSize: 34, fontWeight: "800", marginTop: 8 },
-  subtitle: { color: colors.muted, fontSize: 15, marginTop: 6, marginBottom: 32 },
+  logo: { fontSize: 76 },
+  title: { color: colors.text, fontSize: 46, fontWeight: "900", letterSpacing: -2, marginTop: 10 },
+  subtitle: { color: colors.muted, fontSize: 15, marginTop: 8, marginBottom: 36, letterSpacing: 0.2 },
   input: {
     width: "100%",
     maxWidth: 360,
@@ -69,8 +73,10 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: "center",
     marginTop: 14,
-  },
-  disabled: { opacity: 0.5 },
-  buttonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+    transitionDuration: "150ms",
+  } as any,
+  buttonPressed: { backgroundColor: colors.accentDim, transform: [{ scale: 0.98 }] },
+  disabled: { opacity: 0.45 },
+  buttonText: { color: "#06201d", fontSize: 16, fontWeight: "800", letterSpacing: 0.2 },
   error: { color: colors.red, marginTop: 16, textAlign: "center" },
 });
