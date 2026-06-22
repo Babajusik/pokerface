@@ -41,7 +41,11 @@
       "Bash(ssh -p 443 -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes -R0:localhost:2567 a.pinggy.io)",
       "Bash(curl -s -o /dev/null -w 'HTTP %{http_code}\\\\n' --max-time 25 https://ifeho-31-170-22-201.run.pinggy-free.link/)",
       "Bash(curl -s -X POST --max-time 25 -H 'Content-Type: application/json' https://ifeho-31-170-22-201.run.pinggy-free.link/matchmake/joinOrCreate/game -d '{}' -w '\\\\n[HTTP %{http_code}]\\\\n')",
-      "Bash(curl -s --max-time 25 https://ifeho-31-170-22-201.run.pinggy-free.link/)"
+      "Bash(curl -s --max-time 25 https://ifeho-31-170-22-201.run.pinggy-free.link/)",
+      "Bash(cd \"/c/Users/Nick/Big Game\")",
+      "Bash(curl -s -H 'Authorization: token __TRACKED_VAR__' https://api.github.com/user)",
+      "Bash(curl -s -o /dev/null -w 'GET / -> %{http_code}\\\\n' --max-time 60 https://pokerface-ge2s.onrender.com/)",
+      "Bash(curl -s -X POST --max-time 60 -H 'Content-Type: application/json' https://pokerface-ge2s.onrender.com/matchmake/joinOrCreate/game -d '{}' -w '\\\\nmatchmake -> %{http_code}\\\\n')"
     ]
   }
 }

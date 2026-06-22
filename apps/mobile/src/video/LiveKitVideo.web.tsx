@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, Pressable } from "react-native";
 import { Room, RoomEvent, Track } from "livekit-client";
 import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 import { TOKEN_BASE } from "../net/config";
@@ -172,6 +172,69 @@ export function LiveKitVideo({
     };
   }, [detectActive, identity]);
 
+  // --- Авто-клип «момент провала»: пишем локальную камеру, при вылете собираем клип ---
+  const recRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const elimRef = useRef(false);
+  const [clipUrl, setClipUrl] = useState("");
+
+  useEffect(() => {
+    if (!detectActive) return;
+    let stopped = false;
+    let started = false;
+    const iv = setInterval(() => {
+      if (started || stopped) return;
+      const t = trackFor(identity);
+      if (!t) return;
+      try {
+        const rec = new MediaRecorder(new MediaStream([t]), { mimeType: "video/webm" });
+        chunksRef.current = [];
+        rec.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data);
+        rec.start(1000);
+        recRef.current = rec;
+        started = true;
+      } catch {
+        /* запись недоступна */
+      }
+    }, 500);
+    return () => {
+      stopped = true;
+      clearInterval(iv);
+      try {
+        recRef.current?.stop();
+      } catch {}
+      recRef.current = null;
+    };
+  }, [detectActive, identity]);
+
+  useEffect(() => {
+    const me = players.find((p) => p.id === identity);
+    if (me?.eliminated && !elimRef.current) {
+      elimRef.current = true;
+      const rec = recRef.current;
+      if (rec && rec.state !== "inactive") {
+        rec.onstop = () => {
+          const blob = new Blob(chunksRef.current, { type: "video/webm" });
+          setClipUrl(URL.createObjectURL(blob));
+        };
+        try {
+          rec.stop();
+        } catch {}
+      }
+    }
+    if (!me?.eliminated) elimRef.current = false;
+  }, [players, identity]);
+
+  function shareClip() {
+    fetch(clipUrl)
+      .then((r) => r.blob())
+      .then((b) => {
+        const file = new File([b], "pokerface-fail.webm", { type: "video/webm" });
+        const nav = navigator as any;
+        if (nav.canShare?.({ files: [file] })) nav.share({ files: [file], title: "PokerFace" });
+      });
+  }
+
   if (status === "disabled") {
     return (
       <View style={styles.banner}>
@@ -184,6 +247,41 @@ export function LiveKitVideo({
 
   return (
     <View>
+      {clipUrl ? (
+        <View style={styles.clip}>
+          <Text style={styles.clipTitle}>🎬 Твой момент провала</Text>
+          {React.createElement("video", {
+            src: clipUrl,
+            controls: true,
+            autoPlay: true,
+            loop: true,
+            muted: true,
+            style: { width: 240, borderRadius: 12, background: "#000" },
+          })}
+          <View style={styles.clipBtns}>
+            <Pressable style={styles.clipBtn} onPress={shareClip}>
+              <Text style={styles.clipBtnText}>📤 Поделиться</Text>
+            </Pressable>
+            {React.createElement(
+              "a",
+              {
+                href: clipUrl,
+                download: "pokerface-fail.webm",
+                style: {
+                  background: colors.accent,
+                  color: "#fff",
+                  padding: "10px 16px",
+                  borderRadius: 10,
+                  fontWeight: 700,
+                  textDecoration: "none",
+                  fontSize: 14,
+                },
+              },
+              "⬇ Скачать"
+            )}
+          </View>
+        </View>
+      ) : null}
       {status !== "connected" && (
         <Text style={styles.note}>
           {status === "error" ? `LiveKit: ${errMsg}` : "Подключаю видео…"}
@@ -283,4 +381,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.panel,
   },
   bannerText: { color: colors.muted, fontSize: 13, textAlign: "center" },
+  clip: { alignItems: "center", padding: 12, marginBottom: 8 },
+  clipTitle: { color: colors.text, fontSize: 16, fontWeight: "800", marginBottom: 8 },
+  clipBtns: { flexDirection: "row", gap: 10, marginTop: 10, alignItems: "center" },
+  clipBtn: { backgroundColor: colors.yellow, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10 },
+  clipBtnText: { color: "#1a1a1a", fontWeight: "700", fontSize: 14 },
 });
+
