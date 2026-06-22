@@ -97,7 +97,9 @@ export function LiveKitVideo({
         const vt = localStreamRef.current?.getVideoTracks()[0];
         if (vt) {
           try {
-            await room.localParticipant.publishTrack(new LocalVideoTrack(vt));
+            await room.localParticipant.publishTrack(new LocalVideoTrack(vt), {
+              source: Track.Source.Camera,
+            });
           } catch {}
         }
         rerender();
@@ -119,10 +121,18 @@ export function LiveKitVideo({
   // Поток для плитки игрока: локальный — своя камера, остальные — из LiveKit.
   function streamFor(pid: string): MediaStream | null {
     if (pid === identity) return localStreamRef.current;
-    const room = roomRef.current;
-    const track = room?.remoteParticipants
-      .get(pid)
-      ?.getTrackPublication(Track.Source.Camera)?.videoTrack?.mediaStreamTrack;
+    const rp = roomRef.current?.remoteParticipants.get(pid);
+    if (!rp) return null;
+    let track = rp.getTrackPublication(Track.Source.Camera)?.videoTrack?.mediaStreamTrack;
+    if (!track) {
+      // запасной поиск: первая доступная видео-дорожка участника
+      for (const pub of rp.trackPublications.values()) {
+        if (pub.videoTrack?.mediaStreamTrack) {
+          track = pub.videoTrack.mediaStreamTrack;
+          break;
+        }
+      }
+    }
     return track ? new MediaStream([track]) : null;
   }
 
