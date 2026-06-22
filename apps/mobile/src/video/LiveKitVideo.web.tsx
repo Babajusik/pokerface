@@ -1,15 +1,16 @@
 import React, { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
-import { Room, RoomEvent, Track } from "livekit-client";
+import { Room, RoomEvent, Track, LocalVideoTrack } from "livekit-client";
 import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 import { TOKEN_BASE } from "../net/config";
 import { SmileDetector } from "../smile/SmileDetector";
 import { colors } from "../theme";
 import type { PlayerView } from "../net/useGame";
 
-// Видео-сетка «как в Discord» (web) + детект улыбки по локальной камере.
-// Один захват камеры: LiveKit публикует камеру, а MediaPipe анализирует ту же
-// локальную дорожку (когда detectActive). Используется и в лобби, и в игре.
+// Видео-сетка (web) + детект улыбки.
+// Камера открывается ОДИН раз через getUserMedia: эта же дорожка идёт и в детект
+// (MediaPipe), и публикуется в LiveKit. Поэтому детект работает независимо от
+// того, подключилось ли видео LiveKit (важно в сетях, где видео режется).
 
 type Status = "connecting" | "connected" | "disabled" | "error";
 
@@ -36,15 +37,33 @@ export function LiveKitVideo({
   onSmile?: () => void;
 }) {
   const roomRef = useRef<Room | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
   const [status, setStatus] = useState<Status>("connecting");
   const [errMsg, setErrMsg] = useState("");
   const [, setTick] = useState(0);
   const rerender = () => setTick((t) => t + 1);
 
-  // --- Подключение к LiveKit ---
+  // --- Камера (один раз) + подключение к LiveKit ---
   useEffect(() => {
     let cancelled = false;
-    async function connect() {
+    async function start() {
+      // 1. Камера — best-effort (если её нет, видео/детект просто не идут).
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "user", width: 480, height: 360 },
+          audio: false,
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        localStreamRef.current = stream;
+        rerender();
+      } catch {
+        /* нет камеры — ок, есть DEV-кнопка */
+      }
+
+      // 2. Токен + подключение к LiveKit.
       try {
         const url = `${TOKEN_BASE}/livekit-token?room=${encodeURIComponent(
           roomName
@@ -58,20 +77,13 @@ export function LiveKitVideo({
         const { token, url: wsUrl } = await res.json();
         if (cancelled) return;
 
-        // iceTransportPolicy:"relay" — гнать медиа через TURN по TLS/443,
-        // чтобы видео работало в сетях, режущих UDP (иначе нужен VPN).
-        const room = new Room({
-          adaptiveStream: true,
-          dynacast: true,
-          rtcConfig: { iceTransportPolicy: "relay" },
-        });
+        const room = new Room({ adaptiveStream: true, dynacast: true });
         roomRef.current = room;
         room
           .on(RoomEvent.TrackSubscribed, rerender)
           .on(RoomEvent.TrackUnsubscribed, rerender)
           .on(RoomEvent.ParticipantConnected, rerender)
           .on(RoomEvent.ParticipantDisconnected, rerender)
-          .on(RoomEvent.LocalTrackPublished, rerender)
           .on(RoomEvent.Disconnected, rerender);
 
         await room.connect(wsUrl, token);
@@ -79,34 +91,42 @@ export function LiveKitVideo({
           room.disconnect();
           return;
         }
-        await room.localParticipant.setMicrophoneEnabled(false);
-        await room.localParticipant.setCameraEnabled(true);
         setStatus("connected");
+
+        // 3. Публикуем нашу камеру (ту же, что в детекте).
+        const vt = localStreamRef.current?.getVideoTracks()[0];
+        if (vt) {
+          try {
+            await room.localParticipant.publishTrack(new LocalVideoTrack(vt));
+          } catch {}
+        }
         rerender();
       } catch (e: any) {
         setStatus("error");
         setErrMsg(e?.message || "ошибка LiveKit");
       }
     }
-    connect();
+    start();
     return () => {
       cancelled = true;
       roomRef.current?.disconnect();
       roomRef.current = null;
+      localStreamRef.current?.getTracks().forEach((t) => t.stop());
+      localStreamRef.current = null;
     };
   }, [roomName, identity, name]);
 
-  function trackFor(pid: string): MediaStreamTrack | null {
+  // Поток для плитки игрока: локальный — своя камера, остальные — из LiveKit.
+  function streamFor(pid: string): MediaStream | null {
+    if (pid === identity) return localStreamRef.current;
     const room = roomRef.current;
-    if (!room) return null;
-    const pub =
-      pid === identity
-        ? room.localParticipant.getTrackPublication(Track.Source.Camera)
-        : room.remoteParticipants.get(pid)?.getTrackPublication(Track.Source.Camera);
-    return pub?.videoTrack?.mediaStreamTrack ?? null;
+    const track = room?.remoteParticipants
+      .get(pid)
+      ?.getTrackPublication(Track.Source.Camera)?.videoTrack?.mediaStreamTrack;
+    return track ? new MediaStream([track]) : null;
   }
 
-  // --- Детект улыбки по локальной камере (только когда detectActive) ---
+  // --- Детект улыбки по локальной камере (независимо от LiveKit) ---
   const detectVideoRef = useRef<HTMLVideoElement | null>(null);
   const smileRef = useRef(new SmileDetector());
   const [smileProb, setSmileProb] = useState(0);
@@ -135,18 +155,15 @@ export function LiveKitVideo({
         });
         loop();
       } catch {
-        /* модель/камера недоступны — детект просто не работает, есть DEV-кнопка */
+        /* модель недоступна */
       }
     }
 
     function loop() {
       if (stopped) return;
       const v = detectVideoRef.current;
-      const track = trackFor(identity);
-      if (v && track) {
-        const cur = (v.srcObject as MediaStream | null)?.getVideoTracks()[0];
-        if (cur?.id !== track.id) v.srcObject = new MediaStream([track]);
-      }
+      const stream = localStreamRef.current;
+      if (v && stream && v.srcObject !== stream) v.srcObject = stream;
       if (v && lm && v.readyState >= 2 && v.currentTime !== lastT) {
         lastT = v.currentTime;
         const now = performance.now();
@@ -178,7 +195,7 @@ export function LiveKitVideo({
     };
   }, [detectActive, identity]);
 
-  // --- Авто-клип «момент провала»: пишем локальную камеру, при вылете собираем клип ---
+  // --- Авто-клип «момент провала» ---
   const recRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const elimRef = useRef(false);
@@ -190,18 +207,16 @@ export function LiveKitVideo({
     let started = false;
     const iv = setInterval(() => {
       if (started || stopped) return;
-      const t = trackFor(identity);
-      if (!t) return;
+      const stream = localStreamRef.current;
+      if (!stream) return;
       try {
-        const rec = new MediaRecorder(new MediaStream([t]), { mimeType: "video/webm" });
+        const rec = new MediaRecorder(stream, { mimeType: "video/webm" });
         chunksRef.current = [];
         rec.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data);
         rec.start(1000);
         recRef.current = rec;
         started = true;
-      } catch {
-        /* запись недоступна */
-      }
+      } catch {}
     }, 500);
     return () => {
       stopped = true;
@@ -211,7 +226,7 @@ export function LiveKitVideo({
       } catch {}
       recRef.current = null;
     };
-  }, [detectActive, identity]);
+  }, [detectActive]);
 
   useEffect(() => {
     const me = players.find((p) => p.id === identity);
@@ -219,10 +234,8 @@ export function LiveKitVideo({
       elimRef.current = true;
       const rec = recRef.current;
       if (rec && rec.state !== "inactive") {
-        rec.onstop = () => {
-          const blob = new Blob(chunksRef.current, { type: "video/webm" });
-          setClipUrl(URL.createObjectURL(blob));
-        };
+        rec.onstop = () =>
+          setClipUrl(URL.createObjectURL(new Blob(chunksRef.current, { type: "video/webm" })));
         try {
           rec.stop();
         } catch {}
@@ -275,7 +288,7 @@ export function LiveKitVideo({
                 download: "pokerface-fail.webm",
                 style: {
                   background: colors.accent,
-                  color: "#fff",
+                  color: "#06201d",
                   padding: "10px 16px",
                   borderRadius: 10,
                   fontWeight: 700,
@@ -288,11 +301,11 @@ export function LiveKitVideo({
           </View>
         </View>
       ) : null}
-      {status !== "connected" && (
-        <Text style={styles.note}>
-          {status === "error" ? `LiveKit: ${errMsg}` : "Подключаю видео…"}
-        </Text>
+
+      {status === "error" && (
+        <Text style={styles.note}>Видео недоступно ({errMsg}) — игра работает, детект тоже.</Text>
       )}
+
       {/* скрытое видео для детекта по локальной камере */}
       {detectActive &&
         React.createElement("video", {
@@ -302,9 +315,10 @@ export function LiveKitVideo({
           muted: true,
           style: { display: "none" },
         })}
+
       <View style={styles.grid}>
         {players.map((p) => {
-          const track = trackFor(p.id);
+          const stream = streamFor(p.id);
           const isMe = p.id === identity;
           const border =
             p.cards >= 2 ? colors.red : p.cards === 1 ? colors.yellow : colors.border;
@@ -314,15 +328,13 @@ export function LiveKitVideo({
               style={[styles.tile, { borderColor: border, opacity: p.eliminated ? 0.45 : 1 }]}
             >
               <View style={styles.videoBox}>
-                {track
+                {stream
                   ? React.createElement("video", {
                       autoPlay: true,
                       playsInline: true,
                       muted: true,
                       ref: (el: HTMLVideoElement | null) => {
-                        if (!el) return;
-                        const cur = (el.srcObject as MediaStream | null)?.getVideoTracks()[0];
-                        if (cur?.id !== track.id) el.srcObject = new MediaStream([track]);
+                        if (el && el.srcObject !== stream) el.srcObject = stream;
                       },
                       style: {
                         width: "100%",
@@ -358,7 +370,7 @@ const styles = StyleSheet.create({
     width: 160,
     margin: 6,
     borderWidth: 2,
-    borderRadius: 12,
+    borderRadius: 14,
     backgroundColor: colors.panel,
     overflow: "hidden",
   },
@@ -393,4 +405,3 @@ const styles = StyleSheet.create({
   clipBtn: { backgroundColor: colors.yellow, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10 },
   clipBtnText: { color: "#1a1a1a", fontWeight: "700", fontSize: 14 },
 });
-
