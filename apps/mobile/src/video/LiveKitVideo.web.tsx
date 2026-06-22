@@ -14,10 +14,10 @@ import type { PlayerView } from "../net/useGame";
 
 type Status = "connecting" | "connected" | "disabled" | "error";
 
-const MP_VERSION = "0.10.12";
-const WASM_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}/wasm`;
-const MODEL_URL =
-  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+// Самохостинг MediaPipe (на нашем сервере), чтобы не зависеть от Google/jsdelivr CDN,
+// которые может резать сеть. Файлы лежат в apps/mobile/public/mediapipe/.
+const WASM_URL = "/mediapipe/wasm";
+const MODEL_URL = "/mediapipe/face_landmarker.task";
 
 export function LiveKitVideo({
   roomName,

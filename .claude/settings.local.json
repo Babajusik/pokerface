@@ -84,7 +84,11 @@
       "Bash(tar -xzf py313.tar.gz -C \"/c/Users/Nick/headroom-py313\")",
       "PowerShell($dlls = \"vcruntime140.dll\",\"vcruntime140_1.dll\",\"msvcp140.dll\"; foreach\\($d in $dlls\\){ $p=\"C:\\\\Windows\\\\System32\\\\$d\"; if\\(Test-Path $p\\){ \"{0}  {1}\" -f $d,\\(Get-Item $p\\).VersionInfo.ProductVersion } else { \"$d  ОТСУТСТВУЕТ\" } }; Write-Output \"--- VCRedist installed? ---\"; Get-ItemProperty \"HKLM:\\\\SOFTWARE\\\\Microsoft\\\\VisualStudio\\\\14.0\\\\VC\\\\Runtimes\\\\x64\" -ErrorAction SilentlyContinue | Select-Object Version,Installed)",
       "Bash(curl -s --max-time 40 https://pokerface-ge2s.onrender.com/)",
-      "Bash(curl -s --compressed --max-time 60 https://pokerface-ge2s.onrender.com/)"
+      "Bash(curl -s --compressed --max-time 60 https://pokerface-ge2s.onrender.com/)",
+      "Bash(cd \"/c/Users/Nick/Big Game\" && ls node_modules/@mediapipe/tasks-vision/wasm/ 2>/dev/null | head; echo \"--- размеры ---\"; du -sh node_modules/@mediapipe/tasks-vision/wasm 2>/dev/null)",
+      "Bash(mkdir -p apps/mobile/public/mediapipe/wasm)",
+      "Bash(cp node_modules/@mediapipe/tasks-vision/wasm/* apps/mobile/public/mediapipe/wasm/)",
+      "Bash(curl -s --max-time 120 -L \"https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task\" -o apps/mobile/public/mediapipe/face_landmarker.task)"
     ]
   }
 }
