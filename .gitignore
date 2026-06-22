@@ -8,3 +8,5 @@ server/game/public/
 .env.*
 .DS_Store
 pokerface-prototype.zip
+
+*.env
