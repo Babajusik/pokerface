@@ -25,7 +25,7 @@ export function LobbyScreen({
   const allReady = snapshot.players.length >= 2 && snapshot.players.every((p) => p.ready);
   const counting = snapshot.phase === "countdown";
 
-  // Локальный отсчёт 3-2-1 (все входят в countdown одновременно)
+  // Локальный отсчёт 3-2-1
   const [count, setCount] = useState(3);
   useEffect(() => {
     if (!counting) return;
@@ -43,17 +43,44 @@ export function LobbyScreen({
 
   return (
     <View style={styles.wrap}>
+      {/* Шапка: бейдж ХОСТ + название/код + счётчик + выход */}
       <View style={styles.header}>
-        <Text style={styles.title} numberOfLines={1}>{snapshot.lobbyName || "Лобби"}</Text>
-        <Pressable onPress={onLeave}>
-          <Text style={styles.leave}>Выйти</Text>
-        </Pressable>
-      </View>
-      <View style={styles.subRow}>
-        <Text style={styles.count}>{snapshot.players.length} игрок(ов)</Text>
-        {snapshot.code ? <Text style={styles.code}>Код: {snapshot.code}</Text> : null}
+        <View style={styles.headerLeft}>
+          {isHost && (
+            <View style={styles.hostBadge}>
+              <Text style={styles.hostBadgeText}>ХОСТ</Text>
+            </View>
+          )}
+          <View>
+            <Text style={styles.title} numberOfLines={1}>{snapshot.lobbyName || "Лобби"}</Text>
+            {snapshot.code ? <Text style={styles.code}>код: {snapshot.code}</Text> : null}
+          </View>
+        </View>
+        <View style={styles.headerRight}>
+          <Text style={styles.counter}>
+            {snapshot.players.length} <Text style={styles.counterDim}>из {snapshot.maxPlayers}</Text>
+          </Text>
+          <Pressable onPress={onLeave}><Text style={styles.leave}>Выйти</Text></Pressable>
+        </View>
       </View>
 
+      {/* Список игроков со статусом готовности (как в макете) */}
+      <View style={styles.roster}>
+        {snapshot.players.map((p, i) => (
+          <View key={p.id} style={[styles.row, i > 0 && styles.rowBorder]}>
+            <Text style={styles.name} numberOfLines={1}>
+              {p.id === snapshot.hostId ? "👑 " : ""}
+              {p.name}
+              {p.id === mySessionId ? " (ты)" : ""}
+            </Text>
+            <Text style={[styles.status, p.ready ? styles.ready : styles.notReady]}>
+              {p.ready ? "готов ✓" : "не готов"}
+            </Text>
+          </View>
+        ))}
+      </View>
+
+      {/* Камеры игроков */}
       <ScrollView contentContainerStyle={styles.scroll}>
         <LiveKitVideo
           roomName={roomId}
@@ -64,46 +91,65 @@ export function LobbyScreen({
         />
       </ScrollView>
 
+      {/* Низ: отсчёт или кнопки */}
       {counting ? (
         <View style={styles.countdownBox}>
           <Text style={styles.countdownBig}>{count > 0 ? count : "GO!"}</Text>
         </View>
       ) : (
-        <View style={styles.controls}>
-          <Pressable
-            style={[styles.btn, me?.ready ? styles.btnReady : styles.btnIdle]}
-            onPress={() => onReady(!me?.ready)}
-          >
-            <Text style={styles.btnText}>{me?.ready ? "✓ Готов" : "Я готов"}</Text>
-          </Pressable>
-
-          {isHost && (
+        <>
+          <View style={styles.controls}>
             <Pressable
-              style={[styles.btn, styles.btnStart, !allReady && styles.disabled]}
-              disabled={!allReady}
-              onPress={onStart}
+              style={[styles.btn, me?.ready ? styles.btnReady : styles.btnIdle]}
+              onPress={() => onReady(!me?.ready)}
             >
-              <Text style={styles.btnText}>Начать игру</Text>
+              <Text style={styles.btnText}>{me?.ready ? "✓ Готов" : "Я готов"}</Text>
             </Pressable>
-          )}
-        </View>
+            {isHost && (
+              <Pressable
+                style={[styles.btn, styles.btnStart, !allReady && styles.disabled]}
+                disabled={!allReady}
+                onPress={onStart}
+              >
+                <Text style={styles.startText}>НАЧАТЬ</Text>
+              </Pressable>
+            )}
+          </View>
+          {isHost && !allReady ? (
+            <Text style={styles.hint}>Нужно ≥2 игроков, и все должны быть готовы</Text>
+          ) : null}
+        </>
       )}
-      {isHost && !allReady && !counting ? (
-        <Text style={styles.hint}>Нужно ≥2 игроков и чтобы все были готовы</Text>
-      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { flex: 1, padding: 16 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  title: { color: colors.text, fontSize: 26, fontWeight: "800" },
-  leave: { color: colors.muted, fontSize: 15 },
-  subRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4, marginBottom: 10 },
-  count: { color: colors.muted },
-  code: { color: colors.accent, fontWeight: "800", letterSpacing: 1 },
-  scroll: { paddingVertical: 8 },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+  hostBadge: { backgroundColor: colors.accent, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10 },
+  hostBadgeText: { color: "#06201d", fontWeight: "900", fontSize: 12, letterSpacing: 1 },
+  title: { color: colors.text, fontSize: 22, fontWeight: "800" },
+  code: { color: colors.accent, fontWeight: "700", letterSpacing: 1, fontSize: 12, marginTop: 2 },
+  headerRight: { alignItems: "flex-end", gap: 6 },
+  counter: { color: colors.text, fontSize: 18, fontWeight: "800" },
+  counterDim: { color: colors.muted, fontWeight: "600", fontSize: 14 },
+  leave: { color: colors.muted, fontSize: 14 },
+
+  roster: {
+    marginTop: 14, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border,
+    borderRadius: 14, paddingHorizontal: 14,
+  },
+  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14 },
+  rowBorder: { borderTopWidth: 1, borderTopColor: colors.border },
+  name: { color: colors.text, fontSize: 17, fontWeight: "700", flex: 1 },
+  status: { fontSize: 15, fontWeight: "700" },
+  ready: { color: colors.green },
+  notReady: { color: colors.muted },
+
+  scroll: { paddingVertical: 10 },
+
   controls: { flexDirection: "row", gap: 10, marginTop: 8 },
   btn: { flex: 1, borderRadius: 12, padding: 16, alignItems: "center" },
   btnIdle: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border },
@@ -111,6 +157,7 @@ const styles = StyleSheet.create({
   btnStart: { backgroundColor: colors.accent },
   disabled: { opacity: 0.4 },
   btnText: { color: colors.text, fontSize: 16, fontWeight: "700" },
+  startText: { color: "#06201d", fontSize: 16, fontWeight: "900", letterSpacing: 1 },
   hint: { color: colors.muted, textAlign: "center", marginTop: 10, fontSize: 13 },
   countdownBox: { padding: 16, alignItems: "center" },
   countdownBig: { color: colors.accent, fontSize: 64, fontWeight: "900", letterSpacing: -2 },

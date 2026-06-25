@@ -28,6 +28,7 @@ export class GameRoom extends Room<GameState> {
     this.setState(new GameState());
     this.state.lobbyName = (options.lobbyName || "Лобби").slice(0, 24);
     this.maxClients = Math.min(Math.max(options.maxPlayers || 8, 2), 16);
+    this.state.maxPlayers = this.maxClients;
     this.code = options.code || Math.random().toString(36).slice(2, 8).toUpperCase();
     this.state.code = this.code;
     this.hostLevel = options.hostLevel || "normal";

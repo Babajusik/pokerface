@@ -23,6 +23,7 @@ export interface GameSnapshot {
   phase: string;
   lobbyName: string;
   code: string;
+  maxPlayers: number;
   hostId: string;
   winnerId: string;
   players: PlayerView[];
@@ -30,7 +31,7 @@ export interface GameSnapshot {
 
 export type Status = "idle" | "connecting" | "connected" | "error";
 
-const EMPTY: GameSnapshot = { phase: Phase.Lobby, lobbyName: "", code: "", hostId: "", winnerId: "", players: [] };
+const EMPTY: GameSnapshot = { phase: Phase.Lobby, lobbyName: "", code: "", maxPlayers: 8, hostId: "", winnerId: "", players: [] };
 
 // Хук подключения к игровому серверу. Зеркалит состояние комнаты в React.
 export function useGame() {
@@ -62,6 +63,7 @@ export function useGame() {
       phase: state.phase,
       lobbyName: state.lobbyName,
       code: state.code,
+      maxPlayers: state.maxPlayers,
       hostId: state.hostId,
       winnerId: state.winnerId,
       players,
