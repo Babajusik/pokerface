@@ -25,6 +25,7 @@ export const ServerMsg = {
   PlayerEliminated: "player_eliminated",
   PhaseChanged: "phase_changed",
   GameOver: "game_over",
+  Taunt: "taunt",
 } as const;
 
 /** Цвет карточки по количеству. */

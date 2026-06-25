@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { View, Text, Pressable, StyleSheet, ScrollView } from "react-native";
 import { colors } from "../theme";
 import { LiveKitVideo } from "../video/LiveKitVideo";
@@ -11,6 +11,7 @@ export function GameScreen({
   snapshot,
   mySessionId,
   roomId,
+  taunt,
   onSmile,
   onRematch,
   onLeave,
@@ -18,6 +19,7 @@ export function GameScreen({
   snapshot: GameSnapshot;
   mySessionId: string;
   roomId: string;
+  taunt: { text: string; ts: number };
   onSmile: () => void;
   onRematch: () => void;
   onLeave: () => void;
@@ -27,6 +29,15 @@ export function GameScreen({
   const winner = snapshot.players.find((p) => p.id === snapshot.winnerId);
   const iWon = snapshot.winnerId === mySessionId;
   const playing = snapshot.phase === "playing" && !me?.eliminated;
+
+  // Баннер ИИ-ведущего (показываем ~6 сек на новую реплику)
+  const [tauntVisible, setTauntVisible] = useState(false);
+  useEffect(() => {
+    if (!taunt.ts) return;
+    setTauntVisible(true);
+    const t = setTimeout(() => setTauntVisible(false), 6000);
+    return () => clearTimeout(t);
+  }, [taunt.ts]);
 
   // Звуки на карточку и конец игры
   const prevCards = useRef(0);
@@ -49,6 +60,13 @@ export function GameScreen({
           <Text style={styles.leave}>Выйти</Text>
         </Pressable>
       </View>
+
+      {tauntVisible && taunt.text ? (
+        <View style={styles.taunt}>
+          <Text style={styles.tauntIcon}>🤖</Text>
+          <Text style={styles.tauntText}>{taunt.text}</Text>
+        </View>
+      ) : null}
 
       <ScrollView contentContainerStyle={styles.scroll}>
         <LiveKitVideo
@@ -102,6 +120,13 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 28, fontWeight: "900", letterSpacing: -0.8 },
   leave: { color: colors.muted, fontSize: 15 },
   scroll: { paddingVertical: 10 },
+  taunt: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    backgroundColor: "rgba(45,212,191,0.12)", borderWidth: 1, borderColor: colors.accent,
+    borderRadius: 14, padding: 12, marginTop: 10,
+  },
+  tauntIcon: { fontSize: 22 },
+  tauntText: { color: colors.text, fontSize: 15, fontWeight: "600", flex: 1, fontStyle: "italic" },
   devArea: { alignItems: "center", paddingVertical: 12 },
   devLabel: { color: colors.muted, fontSize: 12, marginBottom: 8 },
   smileBtn: {

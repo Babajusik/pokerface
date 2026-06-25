@@ -99,7 +99,8 @@
       "Bash(bash mcp-install.sh)",
       "Bash(curl -s -o /dev/null -w \"local / : %{http_code}\\\\n\" --max-time 8 \"http://localhost:2567/\")",
       "Bash(curl -s --max-time 8 \"http://localhost:2567/rooms\")",
-      "Bash(curl -s -X POST --max-time 10 -H 'Content-Type: application/json' http://localhost:2567/matchmake/create/game -d '{\"lobbyName\":\"Тест паблик\",\"isPrivate\":false,\"maxPlayers\":5,\"name\":\"Host\"}')"
+      "Bash(curl -s -X POST --max-time 10 -H 'Content-Type: application/json' http://localhost:2567/matchmake/create/game -d '{\"lobbyName\":\"Тест паблик\",\"isPrivate\":false,\"maxPlayers\":5,\"name\":\"Host\"}')",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 8 \"http://localhost:2567/rooms\")"
     ]
   }
 }

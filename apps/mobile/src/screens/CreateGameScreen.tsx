@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from "react-native";
 import { colors } from "../theme";
+import type { HostLevel } from "@pokerface/shared";
 import type { CreateOpts } from "../net/useGame";
 
 export function CreateGameScreen({
@@ -19,6 +20,7 @@ export function CreateGameScreen({
   const [lobbyName, setLobbyName] = useState(`Игра ${defaultName}`.slice(0, 24));
   const [isPrivate, setIsPrivate] = useState(false);
   const [maxPlayers, setMaxPlayers] = useState(8);
+  const [hostLevel, setHostLevel] = useState<HostLevel>("normal");
 
   return (
     <View style={styles.wrap}>
@@ -53,10 +55,28 @@ export function CreateGameScreen({
           </Pressable>
         </View>
 
+        <Text style={styles.label}>ИИ-ведущий (юмор)</Text>
+        <View style={styles.row}>
+          {([["off", "Выкл"], ["normal", "Обычный"], ["savage", "Жёсткий 18+"]] as [HostLevel, string][]).map(
+            ([lvl, lbl]) => (
+              <Pressable
+                key={lvl}
+                style={[styles.seg, hostLevel === lvl && styles.segOn]}
+                onPress={() => setHostLevel(lvl)}
+              >
+                <Text style={[styles.segText, hostLevel === lvl && styles.segTextOn]}>{lbl}</Text>
+              </Pressable>
+            )
+          )}
+        </View>
+        {hostLevel === "savage" && (
+          <Text style={styles.warn}>⚠ Чёрный юмор и 18+. Только для компании взрослых.</Text>
+        )}
+
         <Pressable
           style={({ pressed }) => [styles.create, pressed && { transform: [{ scale: 0.98 }] }, connecting && styles.dim]}
           disabled={connecting}
-          onPress={() => onCreate({ lobbyName: lobbyName.trim() || "Лобби", isPrivate, maxPlayers })}
+          onPress={() => onCreate({ lobbyName: lobbyName.trim() || "Лобби", isPrivate, maxPlayers, hostLevel })}
         >
           {connecting ? <ActivityIndicator color="#06201d" /> : <Text style={styles.createText}>Создать и войти</Text>}
         </Pressable>
@@ -82,6 +102,7 @@ const styles = StyleSheet.create({
   step: { width: 52, height: 52, borderRadius: 12, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
   stepText: { color: colors.text, fontSize: 26, fontWeight: "800" },
   maxNum: { color: colors.text, fontSize: 22, fontWeight: "800", minWidth: 40, textAlign: "center" },
+  warn: { color: colors.yellow, fontSize: 12, marginTop: 8 },
   create: { backgroundColor: colors.accent, borderRadius: 14, padding: 16, alignItems: "center", marginTop: 24 },
   createText: { color: "#06201d", fontSize: 16, fontWeight: "800" },
   dim: { opacity: 0.6 },

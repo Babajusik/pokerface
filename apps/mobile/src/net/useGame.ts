@@ -1,12 +1,13 @@
 import { useCallback, useRef, useState } from "react";
 import { Client, Room } from "colyseus.js";
-import { ClientMsg, ServerMsg, Phase } from "@pokerface/shared";
+import { ClientMsg, ServerMsg, Phase, HostLevel } from "@pokerface/shared";
 import { SERVER_ENDPOINT, TOKEN_BASE } from "./config";
 
 export interface CreateOpts {
   lobbyName: string;
   isPrivate: boolean;
   maxPlayers: number;
+  hostLevel: HostLevel;
 }
 
 export interface PlayerView {
@@ -38,6 +39,7 @@ export function useGame() {
   const [snapshot, setSnapshot] = useState<GameSnapshot>(EMPTY);
   const [mySessionId, setMySessionId] = useState<string>("");
   const [roomId, setRoomId] = useState<string>("");
+  const [taunt, setTaunt] = useState<{ text: string; ts: number }>({ text: "", ts: 0 });
   const roomRef = useRef<Room | null>(null);
 
   const syncFromRoom = useCallback((room: Room) => {
@@ -69,6 +71,9 @@ export function useGame() {
       setMySessionId(room.sessionId);
       setRoomId(room.roomId);
       room.onStateChange(() => syncFromRoom(room));
+      room.onMessage(ServerMsg.Taunt, (m: { text: string }) =>
+        setTaunt({ text: m.text, ts: Date.now() })
+      );
       room.onLeave(() => {
         setStatus("idle");
         setSnapshot(EMPTY);
@@ -102,6 +107,7 @@ export function useGame() {
           lobbyName: opts.lobbyName,
           isPrivate: opts.isPrivate,
           maxPlayers: opts.maxPlayers,
+          hostLevel: opts.hostLevel,
         })
       ),
     [run]
@@ -151,7 +157,7 @@ export function useGame() {
   }, []);
 
   return {
-    status, error, snapshot, mySessionId, roomId,
+    status, error, snapshot, mySessionId, roomId, taunt,
     createGame, joinById, joinByCode,
     setReady, startGame, rematch, smile, leave, reset,
   };

@@ -39,6 +39,7 @@ export default function App() {
         snapshot={snapshot}
         mySessionId={mySessionId}
         roomId={roomId}
+        taunt={game.taunt}
         onSmile={game.smile}
         onRematch={game.rematch}
         onLeave={game.leave}

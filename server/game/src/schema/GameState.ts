@@ -23,4 +23,5 @@ export class GameState extends Schema {
   @type({ map: Player }) players = new MapSchema<Player>();
   @type("uint32") roundStartedAt = 0;
   @type("string") winnerId = "";
+  @type("string") tauntText = "";
 }

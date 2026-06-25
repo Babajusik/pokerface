@@ -1,6 +1,9 @@
 import { Room, Client } from "colyseus";
 import { GameState, Player } from "../schema/GameState";
-import { GAME_CONFIG, Phase, ClientMsg, ServerMsg } from "@pokerface/shared";
+import {
+  GAME_CONFIG, Phase, ClientMsg, ServerMsg,
+  pickJoke, HostLevel, JokeCtx,
+} from "@pokerface/shared";
 
 // Авторитарная игровая комната. Клиент шлёт только "я улыбнулся" —
 // карточки, вылеты и победителя решает сервер (см. ARCHITECTURE.md §1).
@@ -9,12 +12,15 @@ interface CreateOptions {
   isPrivate?: boolean;
   maxPlayers?: number;
   code?: string;
+  hostLevel?: HostLevel;
 }
 
 export class GameRoom extends Room<GameState> {
   maxClients = 16;
   code = "";
+  hostLevel: HostLevel = "normal";
   private startedAt = 0;
+  private tauntTimer?: any;
 
   onCreate(options: CreateOptions = {}) {
     this.setState(new GameState());
@@ -22,6 +28,7 @@ export class GameRoom extends Room<GameState> {
     this.maxClients = Math.min(Math.max(options.maxPlayers || 8, 2), 16);
     this.code = options.code || Math.random().toString(36).slice(2, 8).toUpperCase();
     this.state.code = this.code;
+    this.hostLevel = options.hostLevel || "normal";
     if (options.isPrivate) this.setPrivate(true);
     this.syncMetadata();
 
@@ -63,6 +70,7 @@ export class GameRoom extends Room<GameState> {
 
   private setPhase(phase: Phase) {
     this.state.phase = phase;
+    if (phase !== Phase.Playing) this.stopTaunts();
     this.broadcast(ServerMsg.PhaseChanged, { phase });
     this.syncMetadata();
     console.log(`[room ${this.roomId}] фаза -> ${phase}`);
@@ -74,6 +82,25 @@ export class GameRoom extends Room<GameState> {
       code: this.code,
       phase: this.state.phase,
     });
+  }
+
+  // ── ИИ-ведущий: выбираем готовую реплику (0 токенов) и шлём всем ──
+  private taunt(ctx: JokeCtx, name = "") {
+    const tmpl = pickJoke(ctx, this.hostLevel);
+    if (!tmpl) return;
+    const text = tmpl.replace(/\{name\}/g, name || this.randomAliveName());
+    this.state.tauntText = text;
+    this.broadcast(ServerMsg.Taunt, { text });
+  }
+  private randomAliveName(): string {
+    const alive = [...this.state.players.values()].filter((p) => !p.eliminated);
+    return alive.length ? alive[Math.floor(Math.random() * alive.length)].name : "кто-нибудь";
+  }
+  private stopTaunts() {
+    if (this.tauntTimer) {
+      this.tauntTimer.clear();
+      this.tauntTimer = undefined;
+    }
   }
 
   private tryStart(client: Client) {
@@ -96,6 +123,8 @@ export class GameRoom extends Room<GameState> {
     }
     this.state.winnerId = "";
     this.setPhase(Phase.Playing);
+    this.taunt("hype");
+    this.tauntTimer = this.clock.setInterval(() => this.taunt("hype"), 9000);
   }
 
   private rematch() {
@@ -129,7 +158,12 @@ export class GameRoom extends Room<GameState> {
       p.eliminated = true;
       p.survivedMs = now - this.startedAt;
       this.broadcast(ServerMsg.PlayerEliminated, { playerId: p.id });
+      this.taunt("out", p.name);
+      const alive = [...this.state.players.values()].filter((x) => !x.eliminated);
+      if (alive.length === 2) this.taunt("duel");
       this.checkWinner();
+    } else {
+      this.taunt("card", p.name);
     }
   }
 
@@ -141,6 +175,7 @@ export class GameRoom extends Room<GameState> {
       this.setPhase(Phase.GameOver);
       const name = alive[0]?.name || "никто";
       this.broadcast(ServerMsg.GameOver, { winnerId: this.state.winnerId });
+      if (alive[0]) this.taunt("win", name);
       console.log(`[room ${this.roomId}] 🏆 Победитель: ${name}`);
     }
   }
