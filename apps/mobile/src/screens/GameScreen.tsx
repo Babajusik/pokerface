@@ -262,5 +262,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     borderRadius: 14,
   },
-  rematchText: { color: "#06201d", fontSize: 16, fontWeight: "800" },
+  rematchText: { color: "#10210a", fontSize: 16, fontWeight: "800" },
 });

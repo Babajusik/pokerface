@@ -304,7 +304,7 @@ export function LiveKitVideo({
                 download: "pokerface-fail.webm",
                 style: {
                   background: colors.accent,
-                  color: "#06201d",
+                  color: "#10210a",
                   padding: "10px 16px",
                   borderRadius: 10,
                   fontWeight: 700,

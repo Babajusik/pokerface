@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
   },
   btn: { width: "100%", maxWidth: 360, borderRadius: 14, padding: 16, alignItems: "center", marginTop: 10 },
   primary: { backgroundColor: colors.accent },
-  primaryText: { color: "#06201d", fontSize: 16, fontWeight: "800" },
+  primaryText: { color: "#10210a", fontSize: 16, fontWeight: "800" },
   secondary: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border },
   secondaryText: { color: colors.text, fontSize: 16, fontWeight: "700" },
   ghost: { padding: 12 },

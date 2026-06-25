@@ -77,6 +77,6 @@ const styles = StyleSheet.create({
   } as any,
   buttonPressed: { backgroundColor: colors.accentDim, transform: [{ scale: 0.98 }] },
   disabled: { opacity: 0.45 },
-  buttonText: { color: "#06201d", fontSize: 16, fontWeight: "800", letterSpacing: 0.2 },
+  buttonText: { color: "#10210a", fontSize: 16, fontWeight: "800", letterSpacing: 0.2 },
   error: { color: colors.red, marginTop: 16, textAlign: "center" },
 });

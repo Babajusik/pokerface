@@ -78,7 +78,7 @@ export function CreateGameScreen({
           disabled={connecting}
           onPress={() => onCreate({ lobbyName: lobbyName.trim() || "Лобби", isPrivate, maxPlayers, hostLevel })}
         >
-          {connecting ? <ActivityIndicator color="#06201d" /> : <Text style={styles.createText}>Создать и войти</Text>}
+          {connecting ? <ActivityIndicator color="#10210a" /> : <Text style={styles.createText}>Создать и войти</Text>}
         </Pressable>
         {error ? <Text style={styles.err}>{error}</Text> : null}
       </View>
@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
   maxNum: { color: colors.text, fontSize: 22, fontWeight: "800", minWidth: 40, textAlign: "center" },
   warn: { color: colors.yellow, fontSize: 12, marginTop: 8 },
   create: { backgroundColor: colors.accent, borderRadius: 14, padding: 16, alignItems: "center", marginTop: 24 },
-  createText: { color: "#06201d", fontSize: 16, fontWeight: "800" },
+  createText: { color: "#10210a", fontSize: 16, fontWeight: "800" },
   dim: { opacity: 0.6 },
   err: { color: colors.red, marginTop: 12, textAlign: "center" },
 });
