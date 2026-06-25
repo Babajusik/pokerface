@@ -17,6 +17,8 @@ export class Player extends Schema {
 
 export class GameState extends Schema {
   @type("string") phase = "lobby";
+  @type("string") lobbyName = "";
+  @type("string") code = "";
   @type("string") hostId = "";
   @type({ map: Player }) players = new MapSchema<Player>();
   @type("uint32") roundStartedAt = 0;

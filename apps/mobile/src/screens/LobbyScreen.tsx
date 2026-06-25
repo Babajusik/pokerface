@@ -44,12 +44,15 @@ export function LobbyScreen({
   return (
     <View style={styles.wrap}>
       <View style={styles.header}>
-        <Text style={styles.title}>Лобби</Text>
+        <Text style={styles.title} numberOfLines={1}>{snapshot.lobbyName || "Лобби"}</Text>
         <Pressable onPress={onLeave}>
           <Text style={styles.leave}>Выйти</Text>
         </Pressable>
       </View>
-      <Text style={styles.count}>{snapshot.players.length} игрок(ов) в комнате</Text>
+      <View style={styles.subRow}>
+        <Text style={styles.count}>{snapshot.players.length} игрок(ов)</Text>
+        {snapshot.code ? <Text style={styles.code}>Код: {snapshot.code}</Text> : null}
+      </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
         <LiveKitVideo
@@ -97,7 +100,9 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   title: { color: colors.text, fontSize: 26, fontWeight: "800" },
   leave: { color: colors.muted, fontSize: 15 },
-  count: { color: colors.muted, marginTop: 4, marginBottom: 10 },
+  subRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4, marginBottom: 10 },
+  count: { color: colors.muted },
+  code: { color: colors.accent, fontWeight: "800", letterSpacing: 1 },
   scroll: { paddingVertical: 8 },
   controls: { flexDirection: "row", gap: 10, marginTop: 8 },
   btn: { flex: 1, borderRadius: 12, padding: 16, alignItems: "center" },

@@ -4,12 +4,26 @@ import { GAME_CONFIG, Phase, ClientMsg, ServerMsg } from "@pokerface/shared";
 
 // Авторитарная игровая комната. Клиент шлёт только "я улыбнулся" —
 // карточки, вылеты и победителя решает сервер (см. ARCHITECTURE.md §1).
+interface CreateOptions {
+  lobbyName?: string;
+  isPrivate?: boolean;
+  maxPlayers?: number;
+  code?: string;
+}
+
 export class GameRoom extends Room<GameState> {
   maxClients = 16;
+  code = "";
   private startedAt = 0;
 
-  onCreate() {
+  onCreate(options: CreateOptions = {}) {
     this.setState(new GameState());
+    this.state.lobbyName = (options.lobbyName || "Лобби").slice(0, 24);
+    this.maxClients = Math.min(Math.max(options.maxPlayers || 8, 2), 16);
+    this.code = options.code || Math.random().toString(36).slice(2, 8).toUpperCase();
+    this.state.code = this.code;
+    if (options.isPrivate) this.setPrivate(true);
+    this.syncMetadata();
 
     this.onMessage(ClientMsg.SetReady, (client, msg: { ready: boolean }) => {
       const p = this.state.players.get(client.sessionId);
@@ -50,7 +64,16 @@ export class GameRoom extends Room<GameState> {
   private setPhase(phase: Phase) {
     this.state.phase = phase;
     this.broadcast(ServerMsg.PhaseChanged, { phase });
+    this.syncMetadata();
     console.log(`[room ${this.roomId}] фаза -> ${phase}`);
+  }
+
+  private syncMetadata() {
+    this.setMetadata({
+      lobbyName: this.state.lobbyName,
+      code: this.code,
+      phase: this.state.phase,
+    });
   }
 
   private tryStart(client: Client) {

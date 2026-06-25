@@ -4,6 +4,7 @@ import { Room, RoomEvent, Track, LocalVideoTrack } from "livekit-client";
 import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 import { TOKEN_BASE } from "../net/config";
 import { SmileDetector } from "../smile/SmileDetector";
+import { getSettings } from "../settings";
 import { colors } from "../theme";
 import type { PlayerView } from "../net/useGame";
 
@@ -138,7 +139,12 @@ export function LiveKitVideo({
 
   // --- Детект улыбки по локальной камере (независимо от LiveKit) ---
   const detectVideoRef = useRef<HTMLVideoElement | null>(null);
-  const smileRef = useRef(new SmileDetector());
+  const smileRef = useRef(
+    new SmileDetector({
+      smileThreshold: getSettings().smileThreshold,
+      smileFramesToTrigger: getSettings().smileFrames,
+    })
+  );
   const [smileProb, setSmileProb] = useState(0);
   const onSmileRef = useRef(onSmile);
   useEffect(() => {

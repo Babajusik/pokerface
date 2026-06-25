@@ -10,3 +10,5 @@ server/game/public/
 pokerface-prototype.zip
 
 *.env
+graphify-out/
+.graphify/

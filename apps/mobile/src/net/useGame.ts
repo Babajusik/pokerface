@@ -1,7 +1,13 @@
 import { useCallback, useRef, useState } from "react";
 import { Client, Room } from "colyseus.js";
 import { ClientMsg, ServerMsg, Phase } from "@pokerface/shared";
-import { SERVER_ENDPOINT } from "./config";
+import { SERVER_ENDPOINT, TOKEN_BASE } from "./config";
+
+export interface CreateOpts {
+  lobbyName: string;
+  isPrivate: boolean;
+  maxPlayers: number;
+}
 
 export interface PlayerView {
   id: string;
@@ -14,6 +20,8 @@ export interface PlayerView {
 
 export interface GameSnapshot {
   phase: string;
+  lobbyName: string;
+  code: string;
   hostId: string;
   winnerId: string;
   players: PlayerView[];
@@ -21,7 +29,7 @@ export interface GameSnapshot {
 
 export type Status = "idle" | "connecting" | "connected" | "error";
 
-const EMPTY: GameSnapshot = { phase: Phase.Lobby, hostId: "", winnerId: "", players: [] };
+const EMPTY: GameSnapshot = { phase: Phase.Lobby, lobbyName: "", code: "", hostId: "", winnerId: "", players: [] };
 
 // Хук подключения к игровому серверу. Зеркалит состояние комнаты в React.
 export function useGame() {
@@ -47,36 +55,73 @@ export function useGame() {
     });
     setSnapshot({
       phase: state.phase,
+      lobbyName: state.lobbyName,
+      code: state.code,
       hostId: state.hostId,
       winnerId: state.winnerId,
       players,
     });
   }, []);
 
-  const connect = useCallback(
-    async (name: string) => {
+  const attach = useCallback(
+    (room: Room) => {
+      roomRef.current = room;
+      setMySessionId(room.sessionId);
+      setRoomId(room.roomId);
+      room.onStateChange(() => syncFromRoom(room));
+      room.onLeave(() => {
+        setStatus("idle");
+        setSnapshot(EMPTY);
+        roomRef.current = null;
+      });
+      room.onError((code, message) => setError(message || `error ${code}`));
+      setStatus("connected");
+    },
+    [syncFromRoom]
+  );
+
+  const run = useCallback(
+    async (fn: () => Promise<Room>) => {
       try {
         setStatus("connecting");
         setError("");
-        const client = new Client(SERVER_ENDPOINT);
-        const room = await client.joinOrCreate("game", { name });
-        roomRef.current = room;
-        setMySessionId(room.sessionId);
-        setRoomId(room.roomId);
-        room.onStateChange((s) => syncFromRoom(room));
-        room.onLeave(() => {
-          setStatus("idle");
-          setSnapshot(EMPTY);
-          roomRef.current = null;
-        });
-        room.onError((code, message) => setError(message || `error ${code}`));
-        setStatus("connected");
+        attach(await fn());
       } catch (e: any) {
         setError(e?.message || "Не удалось подключиться");
         setStatus("error");
       }
     },
-    [syncFromRoom]
+    [attach]
+  );
+
+  const createGame = useCallback(
+    (name: string, opts: CreateOpts) =>
+      run(() =>
+        new Client(SERVER_ENDPOINT).create("game", {
+          name,
+          lobbyName: opts.lobbyName,
+          isPrivate: opts.isPrivate,
+          maxPlayers: opts.maxPlayers,
+        })
+      ),
+    [run]
+  );
+
+  const joinById = useCallback(
+    (roomId: string, name: string) =>
+      run(() => new Client(SERVER_ENDPOINT).joinById(roomId, { name })),
+    [run]
+  );
+
+  const joinByCode = useCallback(
+    (code: string, name: string) =>
+      run(async () => {
+        const res = await fetch(`${TOKEN_BASE}/rooms/by-code?code=${encodeURIComponent(code)}`);
+        if (!res.ok) throw new Error("Лобби с таким кодом не найдено");
+        const { roomId } = await res.json();
+        return new Client(SERVER_ENDPOINT).joinById(roomId, { name });
+      }),
+    [run]
   );
 
   const setReady = useCallback((ready: boolean) => {
@@ -99,5 +144,15 @@ export function useGame() {
     roomRef.current?.leave();
   }, []);
 
-  return { status, error, snapshot, mySessionId, roomId, connect, setReady, startGame, rematch, smile, leave };
+  const reset = useCallback(() => {
+    setStatus("idle");
+    setError("");
+    setSnapshot(EMPTY);
+  }, []);
+
+  return {
+    status, error, snapshot, mySessionId, roomId,
+    createGame, joinById, joinByCode,
+    setReady, startGame, rematch, smile, leave, reset,
+  };
 }

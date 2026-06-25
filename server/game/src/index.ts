@@ -4,7 +4,7 @@ import path from "path";
 import fs from "fs";
 import express from "express";
 import cors from "cors";
-import { Server } from "colyseus";
+import { Server, matchMaker } from "colyseus";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import { monitor } from "@colyseus/monitor";
 import { GameRoom } from "./rooms/GameRoom";
@@ -20,6 +20,34 @@ app.use(express.json());
 
 // Веб-панель для наблюдения за комнатами: /monitor
 app.use("/monitor", monitor());
+
+// Список публичных лобби.
+app.get("/rooms", async (_req, res) => {
+  try {
+    const rooms = await matchMaker.query({ name: "game", private: false });
+    res.json(
+      rooms.map((r) => ({
+        roomId: r.roomId,
+        lobbyName: r.metadata?.lobbyName || "Лобби",
+        phase: r.metadata?.phase || "lobby",
+        clients: r.clients,
+        maxClients: r.maxClients,
+      }))
+    );
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message || "ошибка" });
+  }
+});
+
+// Поиск комнаты по коду (для приватных лобби).
+app.get("/rooms/by-code", async (req, res) => {
+  const code = String(req.query.code || "").toUpperCase().trim();
+  if (!code) return res.status(400).json({ error: "нужен код" });
+  const rooms = await matchMaker.query({ name: "game" });
+  const r = rooms.find((x) => (x.metadata?.code || "") === code);
+  if (!r) return res.status(404).json({ error: "лобби с таким кодом не найдено" });
+  res.json({ roomId: r.roomId, lobbyName: r.metadata?.lobbyName || "Лобби" });
+});
 
 // Токен для входа в LiveKit-комнату (видео). identity = sessionId игрока.
 app.get("/livekit-token", async (req, res) => {

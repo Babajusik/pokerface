@@ -88,7 +88,18 @@
       "Bash(cd \"/c/Users/Nick/Big Game\" && ls node_modules/@mediapipe/tasks-vision/wasm/ 2>/dev/null | head; echo \"--- размеры ---\"; du -sh node_modules/@mediapipe/tasks-vision/wasm 2>/dev/null)",
       "Bash(mkdir -p apps/mobile/public/mediapipe/wasm)",
       "Bash(cp node_modules/@mediapipe/tasks-vision/wasm/* apps/mobile/public/mediapipe/wasm/)",
-      "Bash(curl -s --max-time 120 -L \"https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task\" -o apps/mobile/public/mediapipe/face_landmarker.task)"
+      "Bash(curl -s --max-time 120 -L \"https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task\" -o apps/mobile/public/mediapipe/face_landmarker.task)",
+      "Bash(rm -rf /tmp/skill-repo)",
+      "Bash(git clone *)",
+      "Bash(echo \"=== файлы ===\")",
+      "Bash(find /c/Users/Nick/.claude/skills/mobile-app -maxdepth 2 -type f)",
+      "Bash(mkdir -p \"/c/Users/Nick/.claude/skills/graphify\")",
+      "Bash(cp \"/tmp/graphify/graphify/skill.md\" \"/c/Users/Nick/.claude/skills/graphify/SKILL.md\")",
+      "Bash(curl -sSL \"https://app.mcpmarket.com/install/x-vEiZiUvFBtR8JVMQtGumwkiTaYO06rnpdSdZD9S2Y\" -o mcp-install.sh)",
+      "Bash(bash mcp-install.sh)",
+      "Bash(curl -s -o /dev/null -w \"local / : %{http_code}\\\\n\" --max-time 8 \"http://localhost:2567/\")",
+      "Bash(curl -s --max-time 8 \"http://localhost:2567/rooms\")",
+      "Bash(curl -s -X POST --max-time 10 -H 'Content-Type: application/json' http://localhost:2567/matchmake/create/game -d '{\"lobbyName\":\"Тест паблик\",\"isPrivate\":false,\"maxPlayers\":5,\"name\":\"Host\"}')"
     ]
   }
 }
