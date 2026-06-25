@@ -40,7 +40,9 @@ export default function App() {
         mySessionId={mySessionId}
         roomId={roomId}
         taunt={game.taunt}
+        itemEffect={game.itemEffect}
         onSmile={game.smile}
+        onUseItem={game.useItem}
         onRematch={game.rematch}
         onLeave={game.leave}
       />

@@ -3,6 +3,7 @@ import { GameState, Player } from "../schema/GameState";
 import {
   GAME_CONFIG, Phase, ClientMsg, ServerMsg,
   pickJoke, HostLevel, JokeCtx,
+  ITEMS, ItemId, ITEM_COOLDOWN_MS, randomMeme, randomSticker,
 } from "@pokerface/shared";
 
 // Авторитарная игровая комната. Клиент шлёт только "я улыбнулся" —
@@ -21,6 +22,7 @@ export class GameRoom extends Room<GameState> {
   hostLevel: HostLevel = "normal";
   private startedAt = 0;
   private tauntTimer?: any;
+  private itemState = new Map<string, { lastAt: number; uses: Record<string, number> }>();
 
   onCreate(options: CreateOptions = {}) {
     this.setState(new GameState());
@@ -40,6 +42,9 @@ export class GameRoom extends Room<GameState> {
     this.onMessage(ClientMsg.StartGame, (client) => this.tryStart(client));
     this.onMessage(ClientMsg.Rematch, () => this.rematch());
     this.onMessage(ClientMsg.SmileDetected, (client) => this.handleSmile(client));
+    this.onMessage(ClientMsg.UseItem, (client, msg: { itemId: ItemId; targetId: string }) =>
+      this.handleUseItem(client, msg)
+    );
 
     this.onMessage(ClientMsg.FaceLost, (client) => {
       const p = this.state.players.get(client.sessionId);
@@ -122,9 +127,43 @@ export class GameRoom extends Room<GameState> {
       p.lastCardAt = 0;
     }
     this.state.winnerId = "";
+    this.resetItems();
     this.setPhase(Phase.Playing);
     this.taunt("hype");
     this.tauntTimer = this.clock.setInterval(() => this.taunt("hype"), 9000);
+  }
+
+  private resetItems() {
+    this.itemState.clear();
+    for (const id of this.state.players.keys()) {
+      const uses: Record<string, number> = {};
+      for (const it of ITEMS) uses[it.id] = it.charges;
+      this.itemState.set(id, { lastAt: 0, uses });
+    }
+  }
+
+  private handleUseItem(client: Client, msg: { itemId: ItemId; targetId: string }) {
+    if (this.state.phase !== Phase.Playing) return;
+    const from = this.state.players.get(client.sessionId);
+    const target = this.state.players.get(msg?.targetId);
+    if (!from || from.eliminated) return;
+    if (!target || target.eliminated || target.id === from.id) return;
+    const st = this.itemState.get(from.id);
+    if (!st) return;
+    const now = Date.now();
+    if (now - st.lastAt < ITEM_COOLDOWN_MS) return;
+    if (!st.uses[msg.itemId] || st.uses[msg.itemId] <= 0) return;
+    st.uses[msg.itemId] -= 1;
+    st.lastAt = now;
+
+    if (msg.itemId === "host") {
+      this.taunt("hype", target.name); // натравили ведущего на жертву
+      return;
+    }
+    const payload: any = { itemId: msg.itemId, fromName: from.name, targetId: target.id };
+    if (msg.itemId === "meme") payload.text = randomMeme();
+    if (msg.itemId === "sticker") payload.sticker = randomSticker();
+    this.broadcast(ServerMsg.ItemUsed, payload);
   }
 
   private rematch() {

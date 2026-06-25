@@ -40,6 +40,9 @@ export function useGame() {
   const [mySessionId, setMySessionId] = useState<string>("");
   const [roomId, setRoomId] = useState<string>("");
   const [taunt, setTaunt] = useState<{ text: string; ts: number }>({ text: "", ts: 0 });
+  const [itemEffect, setItemEffect] = useState<{
+    itemId: string; text?: string; sticker?: string; fromName: string; ts: number;
+  }>({ itemId: "", fromName: "", ts: 0 });
   const roomRef = useRef<Room | null>(null);
 
   const syncFromRoom = useCallback((room: Room) => {
@@ -74,6 +77,10 @@ export function useGame() {
       room.onMessage(ServerMsg.Taunt, (m: { text: string }) =>
         setTaunt({ text: m.text, ts: Date.now() })
       );
+      room.onMessage(ServerMsg.ItemUsed, (m: any) => {
+        if (m.targetId === room.sessionId)
+          setItemEffect({ itemId: m.itemId, text: m.text, sticker: m.sticker, fromName: m.fromName, ts: Date.now() });
+      });
       room.onLeave(() => {
         setStatus("idle");
         setSnapshot(EMPTY);
@@ -146,6 +153,10 @@ export function useGame() {
     roomRef.current?.send(ClientMsg.SmileDetected, { confidence: 0.9, ts: Date.now() });
   }, []);
 
+  const useItem = useCallback((itemId: string, targetId: string) => {
+    roomRef.current?.send(ClientMsg.UseItem, { itemId, targetId });
+  }, []);
+
   const leave = useCallback(() => {
     roomRef.current?.leave();
   }, []);
@@ -157,8 +168,8 @@ export function useGame() {
   }, []);
 
   return {
-    status, error, snapshot, mySessionId, roomId, taunt,
+    status, error, snapshot, mySessionId, roomId, taunt, itemEffect,
     createGame, joinById, joinByCode,
-    setReady, startGame, rematch, smile, leave, reset,
+    setReady, startGame, rematch, smile, useItem, leave, reset,
   };
 }

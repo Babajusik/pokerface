@@ -27,6 +27,22 @@ function beep(freq: number, durMs: number, type: OscillatorType = "sine", gain =
 
 export type SoundType = "tick" | "go" | "yellow" | "red" | "win" | "lose";
 
+// Гэг-звук для предмета «Звук» (рандомный прикол).
+export function playGag() {
+  if (!getSettings().sound) return;
+  const r = Math.floor(Math.random() * 3);
+  if (r === 0) {
+    // дудка
+    beep(330, 600, "sawtooth", 0.12); beep(330, 600, "sawtooth", 0.12, 0.05);
+  } else if (r === 1) {
+    // грустный тромбон
+    [392, 370, 349, 330].forEach((f, i) => beep(f, 280, "sine", 0.1, i * 0.22));
+  } else {
+    // boing
+    beep(600, 120, "triangle", 0.12); beep(300, 220, "triangle", 0.12, 0.1);
+  }
+}
+
 export function playSound(s: SoundType) {
   if (!getSettings().sound) return;
   switch (s) {

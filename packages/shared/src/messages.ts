@@ -17,6 +17,7 @@ export const ClientMsg = {
   FaceLost: "face_lost",
   FaceFound: "face_found",
   Rematch: "rematch",
+  UseItem: "use_item",
 } as const;
 
 /** Сервер → Клиент (поверх авто-синка состояния комнаты). */
@@ -26,6 +27,7 @@ export const ServerMsg = {
   PhaseChanged: "phase_changed",
   GameOver: "game_over",
   Taunt: "taunt",
+  ItemUsed: "item_used",
 } as const;
 
 /** Цвет карточки по количеству. */
