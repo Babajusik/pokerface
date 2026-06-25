@@ -3,9 +3,9 @@ import { View, Text, Pressable, StyleSheet, ScrollView } from "react-native";
 import { colors } from "../theme";
 import { LiveKitVideo } from "../video/LiveKitVideo";
 import { playSound, playGag } from "../sound";
-import { speak } from "../speak";
+import { speak, stopSpeak } from "../speak";
 import { recordMatch } from "../stats";
-import { ITEMS } from "@pokerface/shared";
+import { ITEMS, ITEM_COOLDOWN_MS } from "@pokerface/shared";
 import type { GameSnapshot } from "../net/useGame";
 
 // Игровой экран: видео-сетка LiveKit (камеры всех) + детект улыбки по своей
@@ -36,6 +36,9 @@ export function GameScreen({
   const winner = snapshot.players.find((p) => p.id === snapshot.winnerId);
   const iWon = snapshot.winnerId === mySessionId;
   const playing = snapshot.phase === "playing" && !me?.eliminated;
+
+  // Остановить голос ведущего при уходе с экрана
+  useEffect(() => () => stopSpeak(), []);
 
   // Баннер ИИ-ведущего (показываем ~6 сек на новую реплику)
   const [tauntVisible, setTauntVisible] = useState(false);
@@ -68,13 +71,27 @@ export function GameScreen({
     Object.fromEntries(ITEMS.map((i) => [i.id, i.charges]))
   );
   const [target, setTarget] = useState<string>("");
+  const lastFireRef = useRef(0);
   useEffect(() => {
-    if (snapshot.phase === "playing")
+    if (snapshot.phase === "playing") {
       setCharges(Object.fromEntries(ITEMS.map((i) => [i.id, i.charges])));
+      setTarget("");
+      lastFireRef.current = 0;
+    }
   }, [snapshot.phase]);
   const opponents = snapshot.players.filter((p) => p.id !== mySessionId && !p.eliminated);
+  // Сбрасываем цель, если выбранный соперник вылетел/вышел.
+  useEffect(() => {
+    if (target && !opponents.some((o) => o.id === target)) setTarget("");
+  }, [target, opponents]);
+
   function fire(itemId: string) {
-    if (!target || (charges[itemId] || 0) <= 0) return;
+    // цель должна быть жива, заряд есть, и соблюдён кулдаун (как на сервере)
+    if (!opponents.some((o) => o.id === target)) return;
+    if ((charges[itemId] || 0) <= 0) return;
+    const now = Date.now();
+    if (now - lastFireRef.current < ITEM_COOLDOWN_MS) return;
+    lastFireRef.current = now;
     onUseItem(itemId, target);
     setCharges((c) => ({ ...c, [itemId]: c[itemId] - 1 }));
   }

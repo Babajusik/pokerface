@@ -19,6 +19,12 @@ if (typeof window !== "undefined" && window.speechSynthesis) {
   window.speechSynthesis.onvoiceschanged = refreshVoice;
 }
 
+export function stopSpeak() {
+  try {
+    if (typeof window !== "undefined" && window.speechSynthesis) window.speechSynthesis.cancel();
+  } catch {}
+}
+
 export function speak(text: string) {
   if (!getSettings().voice) return;
   if (typeof window === "undefined" || !window.speechSynthesis) return;
