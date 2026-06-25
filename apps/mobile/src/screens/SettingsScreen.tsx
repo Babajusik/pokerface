@@ -9,6 +9,7 @@ export function SettingsScreen({ onBack }: { onBack: () => void }) {
   const [threshold, setThreshold] = useState(s.smileThreshold);
   const [frames, setFrames] = useState(s.smileFrames);
   const [sound, setSound] = useState(s.sound);
+  const [voice, setVoice] = useState(s.voice);
 
   function persist(patch: Partial<typeof s>) {
     saveSettings(patch);
@@ -62,6 +63,13 @@ export function SettingsScreen({ onBack }: { onBack: () => void }) {
           <Text style={styles.toggleLabel}>Звук</Text>
           <View style={[styles.switch, sound && styles.switchOn]}>
             <View style={[styles.knob, sound && styles.knobOn]} />
+          </View>
+        </Pressable>
+
+        <Pressable style={styles.toggleRow} onPress={() => { const v = !voice; setVoice(v); persist({ voice: v }); }}>
+          <Text style={styles.toggleLabel}>Голос ведущего</Text>
+          <View style={[styles.switch, voice && styles.switchOn]}>
+            <View style={[styles.knob, voice && styles.knobOn]} />
           </View>
         </Pressable>
       </View>

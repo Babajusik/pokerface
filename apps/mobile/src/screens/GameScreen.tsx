@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet, ScrollView } from "react-native";
 import { colors } from "../theme";
 import { LiveKitVideo } from "../video/LiveKitVideo";
 import { playSound } from "../sound";
+import { speak } from "../speak";
 import type { GameSnapshot } from "../net/useGame";
 
 // Игровой экран: видео-сетка LiveKit (камеры всех) + детект улыбки по своей
@@ -35,6 +36,7 @@ export function GameScreen({
   useEffect(() => {
     if (!taunt.ts) return;
     setTauntVisible(true);
+    speak(taunt.text);
     const t = setTimeout(() => setTauntVisible(false), 6000);
     return () => clearTimeout(t);
   }, [taunt.ts]);

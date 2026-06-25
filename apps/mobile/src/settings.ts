@@ -6,6 +6,7 @@ export interface Settings {
   smileThreshold: number;
   smileFrames: number;
   sound: boolean;
+  voice: boolean;
 }
 
 const KEY = "pokerface.settings";
@@ -14,6 +15,7 @@ const DEFAULTS: Settings = {
   smileThreshold: SMILE_CONFIG.smileThreshold,
   smileFrames: SMILE_CONFIG.smileFramesToTrigger,
   sound: true,
+  voice: true,
 };
 
 let cache: Settings | null = null;
