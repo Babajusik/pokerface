@@ -73,20 +73,23 @@ export function LobbyListScreen({
         ) : open.length === 0 ? (
           <Text style={styles.empty}>Пока нет открытых лобби. Создай своё!</Text>
         ) : (
-          open.map((r) => (
-            <Pressable
-              key={r.roomId}
-              style={({ pressed }) => [styles.roomRow, pressed && { transform: [{ scale: 0.99 }] }]}
-              disabled={connecting}
-              onPress={() => onJoinById(r.roomId)}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={styles.roomName} numberOfLines={1}>{r.lobbyName}</Text>
-                <Text style={styles.roomMeta}>{r.clients}/{r.maxClients} игроков</Text>
-              </View>
-              <Text style={styles.join}>Войти ›</Text>
-            </Pressable>
-          ))
+          open.map((r) => {
+            const full = r.clients >= r.maxClients;
+            return (
+              <Pressable
+                key={r.roomId}
+                style={({ pressed }) => [styles.roomRow, full && styles.roomFull, pressed && !full && { transform: [{ scale: 0.99 }] }]}
+                disabled={connecting || full}
+                onPress={() => onJoinById(r.roomId)}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.roomName} numberOfLines={1}>{r.lobbyName}</Text>
+                  <Text style={styles.roomMeta}>{r.clients}/{r.maxClients} игроков</Text>
+                </View>
+                <Text style={[styles.join, full && styles.joinFull]}>{full ? "полное" : "Войти ›"}</Text>
+              </Pressable>
+            );
+          })
         )}
       </ScrollView>
       {error ? <Text style={styles.err}>{error}</Text> : null}
@@ -109,6 +112,8 @@ const styles = StyleSheet.create({
   roomRow: { flexDirection: "row", alignItems: "center", backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 16 },
   roomName: { color: colors.text, fontSize: 16, fontWeight: "700" },
   roomMeta: { color: colors.muted, fontSize: 13, marginTop: 2 },
+  roomFull: { opacity: 0.5 },
   join: { color: colors.accent, fontWeight: "700" },
+  joinFull: { color: colors.muted },
   err: { color: colors.red, marginTop: 12, textAlign: "center" },
 });

@@ -98,8 +98,8 @@ export default function App() {
         error={error}
         onNameChange={setNamePersist}
         onQuickPlay={() => game.quickPlay(name)}
-        onCreate={() => setRoute("create")}
-        onFind={() => setRoute("list")}
+        onCreate={() => { game.reset(); setRoute("create"); }}
+        onFind={() => { game.reset(); setRoute("list"); }}
         onSettings={() => setRoute("settings")}
       />
     );
