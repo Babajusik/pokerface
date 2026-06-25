@@ -128,6 +128,29 @@ export function useGame() {
     [run]
   );
 
+  // Быстрая игра: войти в случайное открытое лобби, иначе создать своё.
+  const quickPlay = useCallback(
+    (name: string) =>
+      run(async () => {
+        const client = new Client(SERVER_ENDPOINT);
+        try {
+          const res = await fetch(`${TOKEN_BASE}/rooms`);
+          const rooms = await res.json();
+          const open = (Array.isArray(rooms) ? rooms : []).filter(
+            (r: any) => r.phase === "lobby" && r.clients < r.maxClients
+          );
+          if (open.length) {
+            const pick = open[Math.floor(Math.random() * open.length)];
+            return await client.joinById(pick.roomId, { name });
+          }
+        } catch {}
+        return await client.create("game", {
+          name, lobbyName: `Игра ${name}`, isPrivate: false, maxPlayers: 8, hostLevel: "normal",
+        });
+      }),
+    [run]
+  );
+
   const joinByCode = useCallback(
     (code: string, name: string) =>
       run(async () => {
@@ -171,7 +194,7 @@ export function useGame() {
 
   return {
     status, error, snapshot, mySessionId, roomId, taunt, itemEffect,
-    createGame, joinById, joinByCode,
+    createGame, joinById, joinByCode, quickPlay,
     setReady, startGame, rematch, smile, useItem, leave, reset,
   };
 }

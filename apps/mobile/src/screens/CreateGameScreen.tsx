@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   input: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 14, color: colors.text, fontSize: 16 },
   row: { flexDirection: "row", gap: 10, alignItems: "center" },
   seg: { flex: 1, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panel, alignItems: "center" },
-  segOn: { borderColor: colors.accent, backgroundColor: "rgba(45,212,191,0.14)" },
+  segOn: { borderColor: colors.accent, backgroundColor: "rgba(200,242,80,0.14)" },
   segText: { color: colors.muted, fontWeight: "700" },
   segTextOn: { color: colors.accent },
   step: { width: 52, height: 52, borderRadius: 12, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },

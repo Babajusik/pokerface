@@ -39,6 +39,16 @@ app.get("/rooms", async (_req, res) => {
   }
 });
 
+// Сколько игроков сейчас онлайн (во всех комнатах) — для соц-доказательства.
+app.get("/online", async (_req, res) => {
+  try {
+    const rooms = await matchMaker.query({ name: "game" });
+    res.json({ online: rooms.reduce((s, r) => s + r.clients, 0) });
+  } catch {
+    res.json({ online: 0 });
+  }
+});
+
 // Поиск комнаты по коду (для приватных лобби).
 app.get("/rooms/by-code", async (req, res) => {
   const code = String(req.query.code || "").toUpperCase().trim();

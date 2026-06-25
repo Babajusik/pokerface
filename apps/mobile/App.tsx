@@ -90,6 +90,7 @@ export default function App() {
       <MainMenuScreen
         name={name}
         onNameChange={setNamePersist}
+        onQuickPlay={() => game.quickPlay(name)}
         onCreate={() => setRoute("create")}
         onFind={() => setRoute("list")}
         onSettings={() => setRoute("settings")}

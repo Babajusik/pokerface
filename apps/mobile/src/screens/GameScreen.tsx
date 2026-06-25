@@ -4,6 +4,7 @@ import { colors } from "../theme";
 import { LiveKitVideo } from "../video/LiveKitVideo";
 import { playSound, playGag } from "../sound";
 import { speak } from "../speak";
+import { recordMatch } from "../stats";
 import { ITEMS } from "@pokerface/shared";
 import type { GameSnapshot } from "../net/useGame";
 
@@ -54,7 +55,10 @@ export function GameScreen({
     if (cards > prevCards.current) playSound(cards >= 2 ? "red" : "yellow");
     prevCards.current = cards;
     if (snapshot.phase !== prevPhase.current) {
-      if (snapshot.phase === "game_over") playSound(iWon ? "win" : "lose");
+      if (snapshot.phase === "game_over") {
+        playSound(iWon ? "win" : "lose");
+        recordMatch();
+      }
       prevPhase.current = snapshot.phase;
     }
   }, [snapshot, me?.cards, iWon]);
@@ -214,7 +218,7 @@ const styles = StyleSheet.create({
   scroll: { paddingVertical: 10 },
   taunt: {
     flexDirection: "row", alignItems: "center", gap: 10,
-    backgroundColor: "rgba(45,212,191,0.12)", borderWidth: 1, borderColor: colors.accent,
+    backgroundColor: "rgba(200,242,80,0.12)", borderWidth: 1, borderColor: colors.accent,
     borderRadius: 14, padding: 12, marginTop: 10,
   },
   tauntIcon: { fontSize: 22 },
@@ -236,7 +240,7 @@ const styles = StyleSheet.create({
   arsenalLabel: { color: colors.muted, fontSize: 12, marginTop: 10, marginBottom: 6 },
   targetRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center" },
   targetChip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border },
-  targetChipOn: { borderColor: colors.accent, backgroundColor: "rgba(45,212,191,0.16)" },
+  targetChipOn: { borderColor: colors.accent, backgroundColor: "rgba(200,242,80,0.16)" },
   targetChipText: { color: colors.muted, fontWeight: "600", maxWidth: 110 },
   targetChipTextOn: { color: colors.accent },
   itemsRow: { flexDirection: "row", gap: 8, justifyContent: "center", marginTop: 12 },
