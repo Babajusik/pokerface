@@ -6,6 +6,7 @@ import { TOKEN_BASE } from "../net/config";
 
 export function MainMenuScreen({
   name,
+  error,
   onNameChange,
   onQuickPlay,
   onCreate,
@@ -13,6 +14,7 @@ export function MainMenuScreen({
   onSettings,
 }: {
   name: string;
+  error?: string;
   onNameChange: (s: string) => void;
   onQuickPlay: () => void;
   onCreate: () => void;
@@ -102,7 +104,9 @@ export function MainMenuScreen({
         </Pressable>
       </View>
 
-      {!ready && <Text style={styles.hint}>Введи имя, чтобы играть</Text>}
+      {error ? <Text style={styles.err}>{error}</Text> : !ready ? (
+        <Text style={styles.hint}>Введи имя, чтобы играть</Text>
+      ) : null}
     </View>
   );
 }
@@ -137,4 +141,5 @@ const styles = StyleSheet.create({
   pressed: { transform: [{ scale: 0.98 }] },
   disabled: { opacity: 0.45 },
   hint: { color: colors.muted, textAlign: "center", marginTop: 10, fontSize: 13 },
+  err: { color: colors.red, textAlign: "center", marginTop: 10, fontSize: 13 },
 });

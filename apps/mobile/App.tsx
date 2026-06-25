@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { SafeAreaView, View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { colors } from "./src/theme";
@@ -22,6 +22,12 @@ export default function App() {
   const inRoom = status === "connected";
   const inGame = snapshot.phase === "playing" || snapshot.phase === "game_over";
   const connecting = status === "connecting";
+
+  // Зашли в комнату → сбрасываем маршрут на меню, чтобы после выхода вернуться в меню,
+  // а не на устаревший экран Создать/Найти.
+  useEffect(() => {
+    if (status === "connected") setRoute("menu");
+  }, [status]);
 
   function setNamePersist(n: string) {
     setName(n);
@@ -89,6 +95,7 @@ export default function App() {
     content = (
       <MainMenuScreen
         name={name}
+        error={error}
         onNameChange={setNamePersist}
         onQuickPlay={() => game.quickPlay(name)}
         onCreate={() => setRoute("create")}
