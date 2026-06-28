@@ -33,6 +33,26 @@ export type Status = "idle" | "connecting" | "connected" | "error";
 
 const EMPTY: GameSnapshot = { phase: Phase.Lobby, lobbyName: "", code: "", maxPlayers: 8, hostId: "", winnerId: "", players: [] };
 
+// Превращаем ошибку подключения Colyseus в понятный игроку текст.
+// Коды матчмейкинга Colyseus: 4210–4214 (нет хендлера/невалидно/нет комнаты/…).
+function friendlyError(e: any): string {
+  const code = e?.code;
+  const msg = String(e?.message || "");
+  // Заполненная или закрытая (игра уже идёт) комната → сервер не даёт место.
+  if (code === 4212 || /seat|locked|full|reservation/i.test(msg)) {
+    return "Лобби заполнено или игра уже началась.";
+  }
+  if (code === 4210 || code === 4211 || code === 4213) {
+    return "Не удалось войти в лобби (возможно, оно закрыто).";
+  }
+  if (code === 4214) return "Приглашение в лобби истекло.";
+  // Сеть/сервер недоступен.
+  if (!code && /failed to fetch|network|timeout|websocket/i.test(msg)) {
+    return "Сервер недоступен. Проверь соединение.";
+  }
+  return msg || "Не удалось подключиться.";
+}
+
 // Хук подключения к игровому серверу. Зеркалит состояние комнаты в React.
 export function useGame() {
   const [status, setStatus] = useState<Status>("idle");
@@ -101,7 +121,7 @@ export function useGame() {
         setError("");
         attach(await fn());
       } catch (e: any) {
-        setError(e?.message || "Не удалось подключиться");
+        setError(friendlyError(e));
         setStatus("error");
       }
     },
