@@ -9,6 +9,7 @@ export class Player extends Schema {
   @type("boolean") eliminated = false;
   @type("boolean") faceVisible = true;
   @type("boolean") ready = false;
+  @type("boolean") connected = true;     // false = обрыв связи, держим место (реконнект)
   @type("uint32") survivedMs = 0;
 
   // серверное (не синкается):

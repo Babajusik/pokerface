@@ -16,6 +16,12 @@ interface CreateOptions {
   hostLevel?: HostLevel;
 }
 
+// Допустимые id предметов — для валидации входящих UseItem.
+const VALID_ITEM_IDS = new Set<string>(ITEMS.map((it) => it.id));
+// Лёгкий анти-флуд: не больше N сообщений в окне на клиента.
+const MSG_RATE_MAX = 25;
+const MSG_RATE_WINDOW_MS = 1000;
+
 export class GameRoom extends Room<GameState> {
   maxClients = 16;
   code = "";
@@ -23,6 +29,7 @@ export class GameRoom extends Room<GameState> {
   private startedAt = 0;
   private tauntTimer?: any;
   private itemState = new Map<string, { lastAt: number; uses: Record<string, number> }>();
+  private msgRate = new Map<string, number[]>();
 
   onCreate(options: CreateOptions = {}) {
     this.setState(new GameState());
@@ -35,26 +42,53 @@ export class GameRoom extends Room<GameState> {
     if (options.isPrivate) this.setPrivate(true);
     this.syncMetadata();
 
-    this.onMessage(ClientMsg.SetReady, (client, msg: { ready: boolean }) => {
+    this.onMessage(ClientMsg.SetReady, (client, msg: { ready?: boolean }) => {
+      if (this.rateLimited(client)) return;
+      if (typeof msg?.ready !== "boolean") return; // валидация формы
       const p = this.state.players.get(client.sessionId);
-      if (p && this.state.phase === Phase.Lobby) p.ready = !!msg?.ready;
+      if (p && this.state.phase === Phase.Lobby) p.ready = msg.ready;
     });
 
-    this.onMessage(ClientMsg.StartGame, (client) => this.tryStart(client));
-    this.onMessage(ClientMsg.Rematch, () => this.rematch());
-    this.onMessage(ClientMsg.SmileDetected, (client) => this.handleSmile(client));
-    this.onMessage(ClientMsg.UseItem, (client, msg: { itemId: ItemId; targetId: string }) =>
-      this.handleUseItem(client, msg)
-    );
+    this.onMessage(ClientMsg.StartGame, (client) => {
+      if (this.rateLimited(client)) return;
+      this.tryStart(client);
+    });
+    this.onMessage(ClientMsg.Rematch, (client) => {
+      if (this.rateLimited(client)) return;
+      this.rematch();
+    });
+    this.onMessage(ClientMsg.SmileDetected, (client) => {
+      if (this.rateLimited(client)) return;
+      this.handleSmile(client);
+    });
+    this.onMessage(ClientMsg.UseItem, (client, msg: { itemId?: ItemId; targetId?: string }) => {
+      if (this.rateLimited(client)) return;
+      if (!msg || !VALID_ITEM_IDS.has(msg.itemId as string)) return; // неизвестный предмет
+      if (typeof msg.targetId !== "string" || !msg.targetId) return;
+      this.handleUseItem(client, { itemId: msg.itemId as ItemId, targetId: msg.targetId });
+    });
 
     this.onMessage(ClientMsg.FaceLost, (client) => {
+      if (this.rateLimited(client)) return;
       const p = this.state.players.get(client.sessionId);
       if (p) p.faceVisible = false;
     });
     this.onMessage(ClientMsg.FaceFound, (client) => {
+      if (this.rateLimited(client)) return;
       const p = this.state.players.get(client.sessionId);
       if (p) p.faceVisible = true;
     });
+  }
+
+  // Скользящее окно: true = клиент превысил лимит сообщений, игнорируем.
+  private rateLimited(client: Client): boolean {
+    const now = Date.now();
+    const arr = (this.msgRate.get(client.sessionId) || []).filter(
+      (t) => now - t < MSG_RATE_WINDOW_MS
+    );
+    arr.push(now);
+    this.msgRate.set(client.sessionId, arr);
+    return arr.length > MSG_RATE_MAX;
   }
 
   onJoin(client: Client, options: { name?: string }) {
@@ -66,9 +100,36 @@ export class GameRoom extends Room<GameState> {
     console.log(`[room ${this.roomId}] +${p.name} (${this.state.players.size} в комнате)`);
   }
 
-  onLeave(client: Client) {
-    this.state.players.delete(client.sessionId);
-    if (this.state.hostId === client.sessionId) {
+  async onLeave(client: Client, consented?: boolean) {
+    this.msgRate.delete(client.sessionId);
+    const p = this.state.players.get(client.sessionId);
+    const inMatch =
+      this.state.phase === Phase.Countdown || this.state.phase === Phase.Playing;
+
+    // Намеренный выход или мы не в матче → удаляем сразу.
+    if (consented || !inMatch || !p) {
+      this.removePlayer(client.sessionId);
+      return;
+    }
+
+    // Обрыв связи в матче: держим место 30 сек, помечаем "переподключается".
+    p.connected = false;
+    console.log(`[room ${this.roomId}] обрыв ${p.name}, ждём реконнект...`);
+    try {
+      await this.allowReconnection(client, 30);
+      const back = this.state.players.get(client.sessionId);
+      if (back) back.connected = true;
+      console.log(`[room ${this.roomId}] ${p.name} переподключился`);
+    } catch {
+      console.log(`[room ${this.roomId}] ${p.name} не вернулся, удаляем`);
+      this.removePlayer(client.sessionId);
+    }
+  }
+
+  private removePlayer(sessionId: string) {
+    this.state.players.delete(sessionId);
+    this.msgRate.delete(sessionId);
+    if (this.state.hostId === sessionId) {
       this.state.hostId = [...this.state.players.keys()][0] || "";
     }
     if (this.state.phase === Phase.Playing) this.checkWinner();
@@ -77,6 +138,9 @@ export class GameRoom extends Room<GameState> {
   private setPhase(phase: Phase) {
     this.state.phase = phase;
     if (phase !== Phase.Playing) this.stopTaunts();
+    // Лобби открыто для входа; как только начался отсчёт/игра — комната закрыта.
+    if (phase === Phase.Lobby) this.unlock();
+    else this.lock();
     this.broadcast(ServerMsg.PhaseChanged, { phase });
     this.syncMetadata();
     console.log(`[room ${this.roomId}] фаза -> ${phase}`);

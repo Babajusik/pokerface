@@ -20,6 +20,7 @@ export function LobbyListScreen({
 }) {
   const [rooms, setRooms] = useState<RoomInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [code, setCode] = useState("");
 
   useEffect(() => {
@@ -28,8 +29,10 @@ export function LobbyListScreen({
       try {
         const res = await fetch(`${TOKEN_BASE}/rooms`);
         const data = await res.json();
-        if (!stop) setRooms(Array.isArray(data) ? data : []);
-      } catch {}
+        if (!stop) { setRooms(Array.isArray(data) ? data : []); setLoadError(false); }
+      } catch {
+        if (!stop) setLoadError(true); // сервер недоступен — не маскируем под «пусто»
+      }
       if (!stop) setLoading(false);
     }
     load();
@@ -70,6 +73,8 @@ export function LobbyListScreen({
       <ScrollView contentContainerStyle={{ gap: 10, paddingBottom: 24 }}>
         {loading ? (
           <ActivityIndicator color={colors.accent} style={{ marginTop: 24 }} />
+        ) : loadError && open.length === 0 ? (
+          <Text style={styles.empty}>Не удалось загрузить лобби. Проверь соединение — список обновится сам.</Text>
         ) : open.length === 0 ? (
           <Text style={styles.empty}>Пока нет открытых лобби. Создай своё!</Text>
         ) : (

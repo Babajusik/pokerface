@@ -41,6 +41,7 @@ export function LiveKitVideo({
   const localStreamRef = useRef<MediaStream | null>(null);
   const [status, setStatus] = useState<Status>("connecting");
   const [errMsg, setErrMsg] = useState("");
+  const [cameraMsg, setCameraMsg] = useState("");
   const [, setTick] = useState(0);
   const rerender = () => setTick((t) => t + 1);
 
@@ -59,9 +60,16 @@ export function LiveKitVideo({
           return;
         }
         localStreamRef.current = stream;
+        setCameraMsg("");
         rerender();
-      } catch {
-        /* нет камеры — ок, есть DEV-кнопка */
+      } catch (e: any) {
+        // Нет доступа к камере — видео/детект не идут, но игра играбельна (кнопка «Улыбнуться»).
+        const denied = e?.name === "NotAllowedError" || e?.name === "SecurityError";
+        setCameraMsg(
+          denied
+            ? "📷 Камера запрещена. Разреши доступ в настройках браузера или жми кнопку «Улыбнуться»."
+            : "📷 Камера не найдена. Используй кнопку «Улыбнуться»."
+        );
       }
 
       // 2. Токен + подключение к LiveKit.
@@ -318,8 +326,12 @@ export function LiveKitVideo({
         </View>
       ) : null}
 
+      {cameraMsg ? <Text style={styles.note}>{cameraMsg}</Text> : null}
+
       {status === "error" && (
-        <Text style={styles.note}>Видео недоступно ({errMsg}) — игра работает, детект тоже.</Text>
+        <Text style={styles.note}>
+          📡 Видео недоступно — в сетях РФ LiveKit обычно нужен VPN. Игра и детект работают и без видео. ({errMsg})
+        </Text>
       )}
 
       <View style={styles.grid}>
@@ -363,6 +375,7 @@ export function LiveKitVideo({
                 {p.id === hostId ? "👑 " : ""}
                 {isMe ? "Ты" : p.name}
                 {p.ready && !p.eliminated ? " ✓" : ""}
+                {!p.connected ? " ⏳" : ""}
               </Text>
             </View>
           );

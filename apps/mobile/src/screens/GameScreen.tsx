@@ -169,7 +169,7 @@ export function GameScreen({
                   onPress={() => setTarget(o.id)}
                 >
                   <Text style={[styles.targetChipText, target === o.id && styles.targetChipTextOn]} numberOfLines={1}>
-                    {o.name}
+                    {o.name}{!o.connected ? " ⏳" : ""}
                   </Text>
                 </Pressable>
               ))
