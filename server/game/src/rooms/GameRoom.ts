@@ -100,10 +100,36 @@ export class GameRoom extends Room<GameState> {
     console.log(`[room ${this.roomId}] +${p.name} (${this.state.players.size} в комнате)`);
   }
 
-  onLeave(client: Client) {
-    this.state.players.delete(client.sessionId);
+  async onLeave(client: Client, consented?: boolean) {
     this.msgRate.delete(client.sessionId);
-    if (this.state.hostId === client.sessionId) {
+    const p = this.state.players.get(client.sessionId);
+    const inMatch =
+      this.state.phase === Phase.Countdown || this.state.phase === Phase.Playing;
+
+    // Намеренный выход или мы не в матче → удаляем сразу.
+    if (consented || !inMatch || !p) {
+      this.removePlayer(client.sessionId);
+      return;
+    }
+
+    // Обрыв связи в матче: держим место 30 сек, помечаем "переподключается".
+    p.connected = false;
+    console.log(`[room ${this.roomId}] обрыв ${p.name}, ждём реконнект...`);
+    try {
+      await this.allowReconnection(client, 30);
+      const back = this.state.players.get(client.sessionId);
+      if (back) back.connected = true;
+      console.log(`[room ${this.roomId}] ${p.name} переподключился`);
+    } catch {
+      console.log(`[room ${this.roomId}] ${p.name} не вернулся, удаляем`);
+      this.removePlayer(client.sessionId);
+    }
+  }
+
+  private removePlayer(sessionId: string) {
+    this.state.players.delete(sessionId);
+    this.msgRate.delete(sessionId);
+    if (this.state.hostId === sessionId) {
       this.state.hostId = [...this.state.players.keys()][0] || "";
     }
     if (this.state.phase === Phase.Playing) this.checkWinner();

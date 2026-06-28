@@ -115,6 +115,12 @@ export default function App() {
           <Text style={styles.overlayText}>Подключение…</Text>
         </View>
       )}
+      {status === "reconnecting" && (
+        <View style={styles.overlay}>
+          <ActivityIndicator color={colors.accent} size="large" />
+          <Text style={styles.overlayText}>Связь потеряна. Переподключаемся…</Text>
+        </View>
+      )}
     </SafeAreaView>
   );
 }

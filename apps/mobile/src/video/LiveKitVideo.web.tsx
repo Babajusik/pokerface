@@ -375,6 +375,7 @@ export function LiveKitVideo({
                 {p.id === hostId ? "👑 " : ""}
                 {isMe ? "Ты" : p.name}
                 {p.ready && !p.eliminated ? " ✓" : ""}
+                {!p.connected ? " ⏳" : ""}
               </Text>
             </View>
           );

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Client, Room } from "colyseus.js";
 import { ClientMsg, ServerMsg, Phase, HostLevel } from "@pokerface/shared";
 import { SERVER_ENDPOINT, TOKEN_BASE } from "./config";
@@ -17,6 +17,7 @@ export interface PlayerView {
   eliminated: boolean;
   faceVisible: boolean;
   ready: boolean;
+  connected: boolean;
 }
 
 export interface GameSnapshot {
@@ -29,7 +30,7 @@ export interface GameSnapshot {
   players: PlayerView[];
 }
 
-export type Status = "idle" | "connecting" | "connected" | "error";
+export type Status = "idle" | "connecting" | "connected" | "reconnecting" | "error";
 
 const EMPTY: GameSnapshot = { phase: Phase.Lobby, lobbyName: "", code: "", maxPlayers: 8, hostId: "", winnerId: "", players: [] };
 
@@ -65,6 +66,15 @@ export function useGame() {
     itemId: string; text?: string; sticker?: string; fromName: string; ts: number;
   }>({ itemId: "", fromName: "", ts: 0 });
   const roomRef = useRef<Room | null>(null);
+  const clientRef = useRef<Client | null>(null);
+  const intentionalRef = useRef(false);          // true = пользователь сам вышел
+  const reconnectRef = useRef<(token: string) => void>(() => {});
+
+  // Единый Colyseus-клиент (нужен для reconnect по токену).
+  const getClient = useCallback(() => {
+    if (!clientRef.current) clientRef.current = new Client(SERVER_ENDPOINT);
+    return clientRef.current;
+  }, []);
 
   const syncFromRoom = useCallback((room: Room) => {
     const state: any = room.state;
@@ -77,6 +87,7 @@ export function useGame() {
         eliminated: p.eliminated,
         faceVisible: p.faceVisible,
         ready: p.ready,
+        connected: p.connected ?? true,
       });
     });
     setSnapshot({
@@ -95,6 +106,11 @@ export function useGame() {
       roomRef.current = room;
       setMySessionId(room.sessionId);
       setRoomId(room.roomId);
+      // DEV: хэндл для ручного теста обрыва из консоли:
+      //   __pfRoom.connection.transport.ws.close()  — имитирует разрыв связи
+      if (typeof window !== "undefined" && (globalThis as any).__DEV__) {
+        (window as any).__pfRoom = room;
+      }
       room.onStateChange(() => syncFromRoom(room));
       room.onMessage(ServerMsg.Taunt, (m: { text: string }) =>
         setTaunt({ text: m.text, ts: Date.now() })
@@ -103,10 +119,16 @@ export function useGame() {
         if (m.targetId === room.sessionId)
           setItemEffect({ itemId: m.itemId, text: m.text, sticker: m.sticker, fromName: m.fromName, ts: Date.now() });
       });
-      room.onLeave(() => {
-        setStatus("idle");
-        setSnapshot(EMPTY);
+      room.onLeave((code: number) => {
         roomRef.current = null;
+        // code 1000 = нормальное закрытие (выход). Иначе — обрыв связи.
+        if (code === 1000 || intentionalRef.current) {
+          intentionalRef.current = false;
+          setStatus("idle");
+          setSnapshot(EMPTY);
+          return;
+        }
+        reconnectRef.current(room.reconnectionToken);
       });
       room.onError((code, message) => setError(message || `error ${code}`));
       setStatus("connected");
@@ -117,6 +139,7 @@ export function useGame() {
   const run = useCallback(
     async (fn: () => Promise<Room>) => {
       try {
+        intentionalRef.current = false;
         setStatus("connecting");
         setError("");
         attach(await fn());
@@ -128,10 +151,43 @@ export function useGame() {
     [attach]
   );
 
+  // Переподключение после обрыва: несколько попыток с нарастающей паузой
+  // (суммарно ~21с, укладываемся в серверное окно allowReconnection = 30с).
+  const attemptReconnect = useCallback(
+    async (token: string) => {
+      if (!token) {
+        setStatus("idle");
+        setSnapshot(EMPTY);
+        return;
+      }
+      setStatus("reconnecting");
+      const delays = [1000, 2000, 4000, 6000, 8000];
+      for (const d of delays) {
+        await new Promise((r) => setTimeout(r, d));
+        if (intentionalRef.current) return; // пользователь вышел во время попыток
+        try {
+          const room = await getClient().reconnect(token);
+          attach(room);
+          return;
+        } catch {
+          /* следующая попытка */
+        }
+      }
+      setError("Связь потеряна — не удалось переподключиться.");
+      setStatus("error");
+      setSnapshot(EMPTY);
+    },
+    [attach, getClient]
+  );
+
+  useEffect(() => {
+    reconnectRef.current = attemptReconnect;
+  }, [attemptReconnect]);
+
   const createGame = useCallback(
     (name: string, opts: CreateOpts) =>
       run(() =>
-        new Client(SERVER_ENDPOINT).create("game", {
+        getClient().create("game", {
           name,
           lobbyName: opts.lobbyName,
           isPrivate: opts.isPrivate,
@@ -139,20 +195,20 @@ export function useGame() {
           hostLevel: opts.hostLevel,
         })
       ),
-    [run]
+    [run, getClient]
   );
 
   const joinById = useCallback(
     (roomId: string, name: string) =>
-      run(() => new Client(SERVER_ENDPOINT).joinById(roomId, { name })),
-    [run]
+      run(() => getClient().joinById(roomId, { name })),
+    [run, getClient]
   );
 
   // Быстрая игра: войти в случайное открытое лобби, иначе создать своё.
   const quickPlay = useCallback(
     (name: string) =>
       run(async () => {
-        const client = new Client(SERVER_ENDPOINT);
+        const client = getClient();
         try {
           const res = await fetch(`${TOKEN_BASE}/rooms`);
           const rooms = await res.json();
@@ -168,7 +224,7 @@ export function useGame() {
           name, lobbyName: `Игра ${name}`, isPrivate: false, maxPlayers: 8, hostLevel: "normal",
         });
       }),
-    [run]
+    [run, getClient]
   );
 
   const joinByCode = useCallback(
@@ -177,9 +233,9 @@ export function useGame() {
         const res = await fetch(`${TOKEN_BASE}/rooms/by-code?code=${encodeURIComponent(code)}`);
         if (!res.ok) throw new Error("Лобби с таким кодом не найдено");
         const { roomId } = await res.json();
-        return new Client(SERVER_ENDPOINT).joinById(roomId, { name });
+        return getClient().joinById(roomId, { name });
       }),
-    [run]
+    [run, getClient]
   );
 
   const setReady = useCallback((ready: boolean) => {
@@ -203,6 +259,7 @@ export function useGame() {
   }, []);
 
   const leave = useCallback(() => {
+    intentionalRef.current = true; // намеренный выход — не реконнектиться
     roomRef.current?.leave();
   }, []);
 
