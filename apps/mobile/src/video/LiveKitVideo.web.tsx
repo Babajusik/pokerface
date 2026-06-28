@@ -39,6 +39,7 @@ export function LiveKitVideo({
 }) {
   const roomRef = useRef<Room | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const streamCacheRef = useRef<Map<string, MediaStream>>(new Map());
   const [status, setStatus] = useState<Status>("connecting");
   const [errMsg, setErrMsg] = useState("");
   const [cameraMsg, setCameraMsg] = useState("");
@@ -142,7 +143,16 @@ export function LiveKitVideo({
         }
       }
     }
-    return track ? new MediaStream([track]) : null;
+    if (!track) return null;
+    // Кэшируем MediaStream по id дорожки: стабильная ссылка, чтобы srcObject
+    // не переустанавливался на каждый ре-рендер (иначе видео мерцает).
+    const cache = streamCacheRef.current;
+    let s = cache.get(track.id);
+    if (!s || s.getVideoTracks()[0] !== track) {
+      s = new MediaStream([track]);
+      cache.set(track.id, s);
+    }
+    return s;
   }
 
   // --- Детект улыбки по локальной камере (независимо от LiveKit) ---

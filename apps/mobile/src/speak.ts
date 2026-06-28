@@ -26,6 +26,7 @@ export function stopSpeak() {
 }
 
 export function speak(text: string) {
+  return; // временно отключено по просьбе — убрать эту строку, чтобы вернуть голос ведущего
   if (!getSettings().voice) return;
   if (typeof window === "undefined" || !window.speechSynthesis) return;
   try {
