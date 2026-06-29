@@ -115,12 +115,14 @@ export function GameScreen({
         </Pressable>
       </View>
 
+      {/* Надписи ведущего во время игры — временно скрыты (по просьбе), потом оформим красиво.
       {tauntVisible && taunt.text ? (
         <View style={styles.taunt}>
           <Text style={styles.tauntIcon}>🤖</Text>
           <Text style={styles.tauntText}>{taunt.text}</Text>
         </View>
       ) : null}
+      */}
 
       <ScrollView contentContainerStyle={styles.scroll}>
         <LiveKitVideo
@@ -194,12 +196,14 @@ export function GameScreen({
             })}
           </View>
 
+          {/* Кнопка ручной улыбки убрана — детект по камере работает автоматически.
           <Pressable
             style={({ pressed }) => [styles.smileBtnSm, pressed && { transform: [{ scale: 0.96 }] }]}
             onPress={onSmile}
           >
             <Text style={styles.smileTextSm}>😀 Улыбнуться (если нет камеры)</Text>
           </Pressable>
+          */}
         </View>
       )}
 

@@ -260,7 +260,13 @@ export function useGame() {
 
   const leave = useCallback(() => {
     intentionalRef.current = true; // намеренный выход — не реконнектиться
-    roomRef.current?.leave();
+    // Выходим мгновенно (не ждём ответ сервера), иначе UI «залипает» и кажется,
+    // что кнопка не работает. room.leave() уходит фоном.
+    try { roomRef.current?.leave(); } catch {}
+    roomRef.current = null;
+    setStatus("idle");
+    setError("");
+    setSnapshot(EMPTY);
   }, []);
 
   const reset = useCallback(() => {

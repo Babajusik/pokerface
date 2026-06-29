@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
-import { Room, RoomEvent, Track, LocalVideoTrack } from "livekit-client";
+import { Room, RoomEvent, Track, LocalVideoTrack, LocalAudioTrack, RemoteTrack } from "livekit-client";
 import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 import { TOKEN_BASE } from "../net/config";
 import { SmileDetector } from "../smile/SmileDetector";
@@ -40,6 +40,7 @@ export function LiveKitVideo({
   const roomRef = useRef<Room | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const streamCacheRef = useRef<Map<string, MediaStream>>(new Map());
+  const audioElsRef = useRef<HTMLMediaElement[]>([]);
   const [status, setStatus] = useState<Status>("connecting");
   const [errMsg, setErrMsg] = useState("");
   const [cameraMsg, setCameraMsg] = useState("");
@@ -52,9 +53,10 @@ export function LiveKitVideo({
     async function start() {
       // 1. Камера — best-effort (если её нет, видео/детект просто не идут).
       try {
+        // Камера + микрофон (микрофон нужен для голосового чата в игре).
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: "user", width: 480, height: 360 },
-          audio: false,
+          audio: true,
         });
         if (cancelled) {
           stream.getTracks().forEach((t) => t.stop());
@@ -64,12 +66,12 @@ export function LiveKitVideo({
         setCameraMsg("");
         rerender();
       } catch (e: any) {
-        // Нет доступа к камере — видео/детект не идут, но игра играбельна (кнопка «Улыбнуться»).
+        // Нет доступа к камере/микрофону — видео/детект/голос не идут.
         const denied = e?.name === "NotAllowedError" || e?.name === "SecurityError";
         setCameraMsg(
           denied
-            ? "📷 Камера запрещена. Разреши доступ в настройках браузера или жми кнопку «Улыбнуться»."
-            : "📷 Камера не найдена. Используй кнопку «Улыбнуться»."
+            ? "📷🎤 Доступ к камере/микрофону запрещён. Разреши его в настройках браузера."
+            : "📷🎤 Камера или микрофон не найдены."
         );
       }
 
@@ -90,8 +92,21 @@ export function LiveKitVideo({
         const room = new Room({ adaptiveStream: true, dynacast: true });
         roomRef.current = room;
         room
-          .on(RoomEvent.TrackSubscribed, rerender)
-          .on(RoomEvent.TrackUnsubscribed, rerender)
+          .on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
+            // Голос других игроков — воспроизводим (своё аудио сюда не приходит).
+            if (track.kind === Track.Kind.Audio) {
+              const el = track.attach();
+              audioElsRef.current.push(el);
+              document.body.appendChild(el);
+            }
+            rerender();
+          })
+          .on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
+            if (track.kind === Track.Kind.Audio) {
+              track.detach().forEach((el) => el.remove());
+            }
+            rerender();
+          })
           .on(RoomEvent.ParticipantConnected, rerender)
           .on(RoomEvent.ParticipantDisconnected, rerender)
           .on(RoomEvent.Disconnected, rerender);
@@ -103,12 +118,20 @@ export function LiveKitVideo({
         }
         setStatus("connected");
 
-        // 3. Публикуем нашу камеру (ту же, что в детекте).
+        // 3. Публикуем камеру (ту же, что в детекте) и микрофон (голосовой чат).
         const vt = localStreamRef.current?.getVideoTracks()[0];
         if (vt) {
           try {
             await room.localParticipant.publishTrack(new LocalVideoTrack(vt), {
               source: Track.Source.Camera,
+            });
+          } catch {}
+        }
+        const at = localStreamRef.current?.getAudioTracks()[0];
+        if (at) {
+          try {
+            await room.localParticipant.publishTrack(new LocalAudioTrack(at), {
+              source: Track.Source.Microphone,
             });
           } catch {}
         }
@@ -123,6 +146,8 @@ export function LiveKitVideo({
       cancelled = true;
       roomRef.current?.disconnect();
       roomRef.current = null;
+      audioElsRef.current.forEach((el) => el.remove());
+      audioElsRef.current = [];
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
       localStreamRef.current = null;
     };
