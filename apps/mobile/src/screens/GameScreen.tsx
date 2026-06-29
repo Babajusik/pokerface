@@ -7,6 +7,7 @@ import { speak, stopSpeak } from "../speak";
 import { recordMatch } from "../stats";
 import { ITEMS, ITEM_COOLDOWN_MS } from "@pokerface/shared";
 import type { GameSnapshot } from "../net/useGame";
+import { t, useLang } from "../i18n";
 
 // Игровой экран: видео-сетка LiveKit (камеры всех) + детект улыбки по своей
 // камере. DEV-кнопка «Улыбнуться» оставлена как запасной вариант.
@@ -33,6 +34,7 @@ export function GameScreen({
   onLeave: () => void;
   onMediaReady: (ready: boolean) => void;
 }) {
+  useLang();
   const me = snapshot.players.find((p) => p.id === mySessionId);
   const gameOver = snapshot.phase === "game_over";
   const winner = snapshot.players.find((p) => p.id === snapshot.winnerId);
@@ -111,9 +113,9 @@ export function GameScreen({
   return (
     <View style={styles.wrap}>
       <View style={styles.header}>
-        <Text style={styles.title}>{gameOver ? "Игра окончена" : "Не улыбайся!"}</Text>
+        <Text style={styles.title}>{gameOver ? t("game.over") : t("game.title")}</Text>
         <Pressable onPress={onLeave}>
-          <Text style={styles.leave}>Выйти</Text>
+          <Text style={styles.leave}>{t("common.leave")}</Text>
         </Pressable>
       </View>
 
@@ -130,7 +132,7 @@ export function GameScreen({
         <LiveKitVideo
           roomName={roomId}
           identity={mySessionId}
-          name={me?.name || "Игрок"}
+          name={me?.name || t("game.playerDefault")}
           players={snapshot.players}
           hostId={snapshot.hostId}
           detectActive={playing}
@@ -143,29 +145,29 @@ export function GameScreen({
         <View style={styles.resultBox}>
           <Text style={styles.resultEmoji}>{iWon ? "🏆" : "🎭"}</Text>
           <Text style={styles.resultText}>
-            {iWon ? "Ты победил! Железное лицо." : `Победитель: ${winner?.name || "никто"}`}
+            {iWon ? t("game.youWon") : t("game.winner", { name: winner?.name || t("game.nobody") })}
           </Text>
           <Pressable
             style={({ pressed }) => [styles.rematchBtn, pressed && { transform: [{ scale: 0.97 }] }]}
             onPress={onRematch}
           >
-            <Text style={styles.rematchText}>↻ Реванш</Text>
+            <Text style={styles.rematchText}>{t("game.rematch")}</Text>
           </Pressable>
         </View>
       ) : me?.eliminated ? (
         <View style={styles.resultBox}>
           <Text style={styles.resultEmoji}>💀</Text>
-          <Text style={styles.resultText}>Ты вылетел. Жди финала…</Text>
+          <Text style={styles.resultText}>{t("game.eliminated")}</Text>
         </View>
       ) : (
         <View style={styles.devArea}>
-          <Text style={styles.cardsLine}>Карточки: {me ? `${me.cards}/2` : "—"}</Text>
+          <Text style={styles.cardsLine}>{me ? t("game.cards", { n: me.cards }) : "—"}</Text>
 
           {/* Арсенал «провокатора» */}
-          <Text style={styles.arsenalLabel}>Цель:</Text>
+          <Text style={styles.arsenalLabel}>{t("game.target")}</Text>
           <View style={styles.targetRow}>
             {opponents.length === 0 ? (
-              <Text style={styles.devLabel}>нет соперников</Text>
+              <Text style={styles.devLabel}>{t("game.noOpponents")}</Text>
             ) : (
               opponents.map((o) => (
                 <Pressable
@@ -192,7 +194,7 @@ export function GameScreen({
                   onPress={() => fire(it.id)}
                 >
                   <Text style={styles.itemEmoji}>{it.emoji}</Text>
-                  <Text style={styles.itemLabel}>{it.label}</Text>
+                  <Text style={styles.itemLabel}>{t(`item.${it.id}`)}</Text>
                   <Text style={styles.itemCharges}>{left}</Text>
                 </Pressable>
               );
@@ -215,7 +217,7 @@ export function GameScreen({
         <View style={styles.fxOverlay} pointerEvents="none">
           <View style={styles.memeCard}>
             <Text style={styles.memeText}>{itemEffect.text}</Text>
-            <Text style={styles.fxFrom}>от {itemEffect.fromName}</Text>
+            <Text style={styles.fxFrom}>{t("game.from", { name: itemEffect.fromName })}</Text>
           </View>
         </View>
       ) : null}
@@ -227,7 +229,7 @@ export function GameScreen({
       ) : null}
       {fx && itemEffect.itemId === "sound" ? (
         <View style={styles.fxToast} pointerEvents="none">
-          <Text style={styles.fxToastText}>🔊 {itemEffect.fromName} врубил гэг!</Text>
+          <Text style={styles.fxToastText}>{t("game.gag", { name: itemEffect.fromName })}</Text>
         </View>
       ) : null}
     </View>

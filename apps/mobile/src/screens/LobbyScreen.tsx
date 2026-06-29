@@ -4,6 +4,7 @@ import { colors } from "../theme";
 import { LiveKitVideo } from "../video/LiveKitVideo";
 import { playSound } from "../sound";
 import type { GameSnapshot } from "../net/useGame";
+import { t, useLang } from "../i18n";
 
 export function LobbyScreen({
   snapshot,
@@ -22,6 +23,7 @@ export function LobbyScreen({
   onLeave: () => void;
   onMediaReady: (ready: boolean) => void;
 }) {
+  useLang();
   const me = snapshot.players.find((p) => p.id === mySessionId);
   const isHost = snapshot.hostId === mySessionId;
   const allReady = snapshot.players.length >= 2 && snapshot.players.every((p) => p.ready);
@@ -52,19 +54,19 @@ export function LobbyScreen({
         <View style={styles.headerLeft}>
           {isHost && (
             <View style={styles.hostBadge}>
-              <Text style={styles.hostBadgeText}>ХОСТ</Text>
+              <Text style={styles.hostBadgeText}>{t("lobby.host")}</Text>
             </View>
           )}
           <View>
-            <Text style={styles.title} numberOfLines={1}>{snapshot.lobbyName || "Лобби"}</Text>
-            {snapshot.code ? <Text style={styles.code}>код: {snapshot.code}</Text> : null}
+            <Text style={styles.title} numberOfLines={1}>{snapshot.lobbyName || t("lobby.defaultName")}</Text>
+            {snapshot.code ? <Text style={styles.code}>{t("lobby.code", { code: snapshot.code })}</Text> : null}
           </View>
         </View>
         <View style={styles.headerRight}>
           <Text style={styles.counter}>
-            {snapshot.players.length} <Text style={styles.counterDim}>из {snapshot.maxPlayers}</Text>
+            {snapshot.players.length} <Text style={styles.counterDim}>{t("lobby.of")} {snapshot.maxPlayers}</Text>
           </Text>
-          <Pressable onPress={onLeave}><Text style={styles.leave}>Выйти</Text></Pressable>
+          <Pressable onPress={onLeave}><Text style={styles.leave}>{t("common.leave")}</Text></Pressable>
         </View>
       </View>
 
@@ -75,11 +77,11 @@ export function LobbyScreen({
             <Text style={styles.name} numberOfLines={1}>
               {p.id === snapshot.hostId ? "👑 " : ""}
               {p.name}
-              {p.id === mySessionId ? " (ты)" : ""}
+              {p.id === mySessionId ? t("lobby.youSuffix") : ""}
               {!p.mediaReady ? " 📷…" : ""}
             </Text>
             <Text style={[styles.status, p.ready ? styles.ready : styles.notReady]}>
-              {p.ready ? "готов ✓" : "не готов"}
+              {p.ready ? t("lobby.ready") : t("lobby.notReady")}
             </Text>
           </View>
         ))}
@@ -100,7 +102,7 @@ export function LobbyScreen({
       {/* Низ: отсчёт или кнопки */}
       {counting ? (
         <View style={styles.countdownBox}>
-          <Text style={styles.countdownBig}>{count > 0 ? count : "GO!"}</Text>
+          <Text style={styles.countdownBig}>{count > 0 ? count : t("lobby.go")}</Text>
         </View>
       ) : (
         <>
@@ -109,7 +111,7 @@ export function LobbyScreen({
               style={[styles.btn, me?.ready ? styles.btnReady : styles.btnIdle]}
               onPress={() => onReady(!me?.ready)}
             >
-              <Text style={styles.btnText}>{me?.ready ? "✓ Готов" : "Я готов"}</Text>
+              <Text style={styles.btnText}>{me?.ready ? t("lobby.imReadyOn") : t("lobby.imReady")}</Text>
             </Pressable>
             {isHost && (
               <Pressable
@@ -117,14 +119,14 @@ export function LobbyScreen({
                 disabled={!canStart}
                 onPress={onStart}
               >
-                <Text style={styles.startText}>НАЧАТЬ</Text>
+                <Text style={styles.startText}>{t("lobby.start")}</Text>
               </Pressable>
             )}
           </View>
           {isHost && !allReady ? (
-            <Text style={styles.hint}>Нужно ≥2 игроков, и все должны быть готовы</Text>
+            <Text style={styles.hint}>{t("lobby.needPlayers")}</Text>
           ) : isHost && !allMedia ? (
-            <Text style={styles.hint}>Ждём камеру и микрофон у всех игроков…</Text>
+            <Text style={styles.hint}>{t("lobby.waitMedia")}</Text>
           ) : null}
         </>
       )}

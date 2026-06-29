@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator } from "react-native";
 import { colors } from "../theme";
 import { TOKEN_BASE } from "../net/config";
+import { t, useLang } from "../i18n";
 
 interface RoomInfo { roomId: string; lobbyName: string; phase: string; clients: number; maxClients: number; }
 
@@ -18,6 +19,7 @@ export function LobbyListScreen({
   connecting: boolean;
   error: string;
 }) {
+  useLang();
   const [rooms, setRooms] = useState<RoomInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -45,19 +47,19 @@ export function LobbyListScreen({
   return (
     <View style={styles.wrap}>
       <View style={styles.header}>
-        <Pressable onPress={onBack}><Text style={styles.back}>‹ Назад</Text></Pressable>
-        <Text style={styles.title}>Найти игру</Text>
+        <Pressable onPress={onBack}><Text style={styles.back}>{t("common.back")}</Text></Pressable>
+        <Text style={styles.title}>{t("list.title")}</Text>
         <View style={{ width: 60 }} />
       </View>
 
       <View style={styles.codeRow}>
         <TextInput
           style={styles.codeInput}
-          placeholder="Код лобби"
+          placeholder={t("list.codePlaceholder")}
           placeholderTextColor={colors.muted}
           autoCapitalize="characters"
           value={code}
-          onChangeText={(t) => setCode(t.toUpperCase())}
+          onChangeText={(v) => setCode(v.toUpperCase())}
           maxLength={6}
         />
         <Pressable
@@ -65,18 +67,18 @@ export function LobbyListScreen({
           disabled={!code.trim() || connecting}
           onPress={() => onJoinByCode(code.trim())}
         >
-          <Text style={styles.codeBtnText}>Войти</Text>
+          <Text style={styles.codeBtnText}>{t("list.enter")}</Text>
         </Pressable>
       </View>
 
-      <Text style={styles.section}>Открытые лобби</Text>
+      <Text style={styles.section}>{t("list.openLobbies")}</Text>
       <ScrollView contentContainerStyle={{ gap: 10, paddingBottom: 24 }}>
         {loading ? (
           <ActivityIndicator color={colors.accent} style={{ marginTop: 24 }} />
         ) : loadError && open.length === 0 ? (
-          <Text style={styles.empty}>Не удалось загрузить лобби. Проверь соединение — список обновится сам.</Text>
+          <Text style={styles.empty}>{t("list.loadError")}</Text>
         ) : open.length === 0 ? (
-          <Text style={styles.empty}>Пока нет открытых лобби. Создай своё!</Text>
+          <Text style={styles.empty}>{t("list.empty")}</Text>
         ) : (
           open.map((r) => {
             const full = r.clients >= r.maxClients;
@@ -89,9 +91,9 @@ export function LobbyListScreen({
               >
                 <View style={{ flex: 1 }}>
                   <Text style={styles.roomName} numberOfLines={1}>{r.lobbyName}</Text>
-                  <Text style={styles.roomMeta}>{r.clients}/{r.maxClients} игроков</Text>
+                  <Text style={styles.roomMeta}>{t("list.players", { n: r.clients, m: r.maxClients })}</Text>
                 </View>
-                <Text style={[styles.join, full && styles.joinFull]}>{full ? "полное" : "Войти ›"}</Text>
+                <Text style={[styles.join, full && styles.joinFull]}>{full ? t("list.full") : t("list.join")}</Text>
               </Pressable>
             );
           })

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Client, Room } from "colyseus.js";
 import { ClientMsg, ServerMsg, Phase, HostLevel } from "@pokerface/shared";
 import { SERVER_ENDPOINT, TOKEN_BASE } from "./config";
+import { t } from "../i18n";
 
 export interface CreateOpts {
   lobbyName: string;
@@ -42,17 +43,17 @@ function friendlyError(e: any): string {
   const msg = String(e?.message || "");
   // Заполненная или закрытая (игра уже идёт) комната → сервер не даёт место.
   if (code === 4212 || /seat|locked|full|reservation/i.test(msg)) {
-    return "Лобби заполнено или игра уже началась.";
+    return t("err.full");
   }
   if (code === 4210 || code === 4211 || code === 4213) {
-    return "Не удалось войти в лобби (возможно, оно закрыто).";
+    return t("err.closed");
   }
-  if (code === 4214) return "Приглашение в лобби истекло.";
+  if (code === 4214) return t("err.expired");
   // Сеть/сервер недоступен.
   if (!code && /failed to fetch|network|timeout|websocket/i.test(msg)) {
-    return "Сервер недоступен. Проверь соединение.";
+    return t("err.noServer");
   }
-  return msg || "Не удалось подключиться.";
+  return msg || t("err.generic");
 }
 
 // Хук подключения к игровому серверу. Зеркалит состояние комнаты в React.
@@ -175,7 +176,7 @@ export function useGame() {
           /* следующая попытка */
         }
       }
-      setError("Связь потеряна — не удалось переподключиться.");
+      setError(t("err.reconnectFailed"));
       setStatus("error");
       setSnapshot(EMPTY);
     },
@@ -233,7 +234,7 @@ export function useGame() {
     (code: string, name: string) =>
       run(async () => {
         const res = await fetch(`${TOKEN_BASE}/rooms/by-code?code=${encodeURIComponent(code)}`);
-        if (!res.ok) throw new Error("Лобби с таким кодом не найдено");
+        if (!res.ok) throw new Error(t("err.codeNotFound"));
         const { roomId } = await res.json();
         return getClient().joinById(roomId, { name });
       }),

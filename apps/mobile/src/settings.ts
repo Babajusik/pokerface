@@ -7,6 +7,7 @@ export interface Settings {
   smileFrames: number;
   sound: boolean;
   voice: boolean;
+  lang: "ru" | "en";
 }
 
 const KEY = "pokerface.settings";
@@ -16,6 +17,7 @@ const DEFAULTS: Settings = {
   smileFrames: SMILE_CONFIG.smileFramesToTrigger,
   sound: true,
   voice: true,
+  lang: "ru",
 };
 
 let cache: Settings | null = null;

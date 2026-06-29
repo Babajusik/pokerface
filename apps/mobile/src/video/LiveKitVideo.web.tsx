@@ -7,6 +7,7 @@ import { SmileDetector } from "../smile/SmileDetector";
 import { getSettings } from "../settings";
 import { colors } from "../theme";
 import type { PlayerView } from "../net/useGame";
+import { t, useLang } from "../i18n";
 
 // Видео-сетка (web) + детект улыбки.
 // Камера открывается ОДИН раз через getUserMedia: эта же дорожка идёт и в детект
@@ -39,6 +40,7 @@ export function LiveKitVideo({
   onSmile?: () => void;
   onMediaReady?: (ready: boolean) => void;
 }) {
+  useLang();
   const roomRef = useRef<Room | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const streamCacheRef = useRef<Map<string, MediaStream>>(new Map());
@@ -73,11 +75,7 @@ export function LiveKitVideo({
         // Нет доступа к камере/микрофону — видео/детект/голос не идут.
         onMediaReady?.(false);
         const denied = e?.name === "NotAllowedError" || e?.name === "SecurityError";
-        setCameraMsg(
-          denied
-            ? "📷🎤 Доступ к камере/микрофону запрещён. Разреши его в настройках браузера."
-            : "📷🎤 Камера или микрофон не найдены."
-        );
+        setCameraMsg(denied ? t("video.camDenied") : t("video.camNotFound"));
       }
 
       // 2. Токен + подключение к LiveKit.
@@ -321,9 +319,7 @@ export function LiveKitVideo({
   if (status === "disabled") {
     return (
       <View style={styles.banner}>
-        <Text style={styles.bannerText}>
-          📹 Видео выключено. Добавь ключи LiveKit в server/game/.env и перезапусти сервер.
-        </Text>
+        <Text style={styles.bannerText}>{t("video.disabled")}</Text>
       </View>
     );
   }
@@ -332,7 +328,7 @@ export function LiveKitVideo({
     <View>
       {clipUrl ? (
         <View style={styles.clip}>
-          <Text style={styles.clipTitle}>🎬 Твой момент провала</Text>
+          <Text style={styles.clipTitle}>{t("video.clipTitle")}</Text>
           {React.createElement("video", {
             src: clipUrl,
             controls: true,
@@ -343,7 +339,7 @@ export function LiveKitVideo({
           })}
           <View style={styles.clipBtns}>
             <Pressable style={styles.clipBtn} onPress={shareClip}>
-              <Text style={styles.clipBtnText}>📤 Поделиться</Text>
+              <Text style={styles.clipBtnText}>{t("video.share")}</Text>
             </Pressable>
             {React.createElement(
               "a",
@@ -360,7 +356,7 @@ export function LiveKitVideo({
                   fontSize: 14,
                 },
               },
-              "⬇ Скачать"
+              t("video.download")
             )}
           </View>
         </View>
@@ -369,9 +365,7 @@ export function LiveKitVideo({
       {cameraMsg ? <Text style={styles.note}>{cameraMsg}</Text> : null}
 
       {status === "error" && (
-        <Text style={styles.note}>
-          📡 Видео недоступно — в сетях РФ LiveKit обычно нужен VPN. Игра и детект работают и без видео. ({errMsg})
-        </Text>
+        <Text style={styles.note}>{t("video.vpn", { err: errMsg })}</Text>
       )}
 
       <View style={styles.grid}>
@@ -413,7 +407,7 @@ export function LiveKitVideo({
               </View>
               <Text style={styles.name} numberOfLines={1}>
                 {p.id === hostId ? "👑 " : ""}
-                {isMe ? "Ты" : p.name}
+                {isMe ? t("common.you") : p.name}
                 {p.ready && !p.eliminated ? " ✓" : ""}
                 {!p.connected ? " ⏳" : ""}
               </Text>

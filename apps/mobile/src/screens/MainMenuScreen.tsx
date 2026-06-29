@@ -3,6 +3,7 @@ import { View, Text, TextInput, Pressable, StyleSheet } from "react-native";
 import { colors } from "../theme";
 import { getStats } from "../stats";
 import { TOKEN_BASE } from "../net/config";
+import { t, useLang } from "../i18n";
 
 export function MainMenuScreen({
   name,
@@ -21,6 +22,7 @@ export function MainMenuScreen({
   onFind: () => void;
   onSettings: () => void;
 }) {
+  useLang();
   const ready = name.trim().length > 0;
   const stats = getStats();
   const [online, setOnline] = useState<number | null>(null);
@@ -44,7 +46,7 @@ export function MainMenuScreen({
   function invite() {
     try {
       const url = typeof window !== "undefined" ? window.location.origin : "";
-      const text = `Го рубиться в PokerFace — кто дольше не улыбнётся! ${url}`;
+      const text = t("menu.inviteText", { url });
       const nav = navigator as any;
       if (nav.share) nav.share({ title: "PokerFace", text, url });
       else if (nav.clipboard) { nav.clipboard.writeText(text); setInvited(true); setTimeout(() => setInvited(false), 2000); }
@@ -56,26 +58,26 @@ export function MainMenuScreen({
       {/* retention: стрик + матчи + онлайн */}
       <View style={styles.stats}>
         {stats.streak > 0 && (
-          <View style={styles.chip}><Text style={styles.chipHot}>🔥</Text><Text style={styles.chipText}> {stats.streak} </Text><Text style={styles.chipMuted}>дн.</Text></View>
+          <View style={styles.chip}><Text style={styles.chipHot}>🔥</Text><Text style={styles.chipText}> {stats.streak} </Text><Text style={styles.chipMuted}>{t("menu.days")}</Text></View>
         )}
         {stats.matches > 0 && (
-          <View style={styles.chip}><Text style={styles.chipText}>🎭 {stats.matches}</Text><Text style={styles.chipMuted}> матчей</Text></View>
+          <View style={styles.chip}><Text style={styles.chipText}>🎭 {stats.matches}</Text><Text style={styles.chipMuted}> {t("menu.matches")}</Text></View>
         )}
         {online != null && (
-          <View style={styles.online}><View style={styles.dot} /><Text style={styles.onlineText}>{online} онлайн</Text></View>
+          <View style={styles.online}><View style={styles.dot} /><Text style={styles.onlineText}>{online} {t("menu.online")}</Text></View>
         )}
       </View>
 
       <View style={styles.hero}>
         <Text style={styles.logo}>🎭</Text>
         <Text style={styles.title}>PokerFace</Text>
-        <Text style={styles.subtitle}>Не улыбайся. Останься последним.</Text>
+        <Text style={styles.subtitle}>{t("app.subtitle")}</Text>
       </View>
 
       <View style={styles.actions}>
         <TextInput
           style={styles.input}
-          placeholder="Твоё имя"
+          placeholder={t("menu.namePlaceholder")}
           placeholderTextColor={colors.muted}
           value={name}
           onChangeText={onNameChange}
@@ -86,26 +88,26 @@ export function MainMenuScreen({
           disabled={!ready}
           onPress={onQuickPlay}
         >
-          <Text style={styles.quickText}>⚡ Быстрая игра</Text>
+          <Text style={styles.quickText}>{t("menu.quickPlay")}</Text>
         </Pressable>
         <View style={styles.pair}>
           <Pressable style={({ pressed }) => [styles.btn2, pressed && styles.pressed, !ready && styles.disabled]} disabled={!ready} onPress={onCreate}>
-            <Text style={styles.btn2Text}>➕ Создать</Text>
+            <Text style={styles.btn2Text}>{t("menu.create")}</Text>
           </Pressable>
           <Pressable style={({ pressed }) => [styles.btn2, pressed && styles.pressed, !ready && styles.disabled]} disabled={!ready} onPress={onFind}>
-            <Text style={styles.btn2Text}>🔍 Найти</Text>
+            <Text style={styles.btn2Text}>{t("menu.find")}</Text>
           </Pressable>
         </View>
         <Pressable style={({ pressed }) => [styles.invite, pressed && styles.pressed]} onPress={invite}>
-          <Text style={styles.inviteText}>{invited ? "✓ Ссылка скопирована" : "🎟️ Позови друзей"}</Text>
+          <Text style={styles.inviteText}>{invited ? t("menu.inviteCopied") : t("menu.invite")}</Text>
         </Pressable>
         <Pressable style={styles.ghost} onPress={onSettings}>
-          <Text style={styles.ghostText}>⚙ Настройки</Text>
+          <Text style={styles.ghostText}>{t("menu.settings")}</Text>
         </Pressable>
       </View>
 
       {error ? <Text style={styles.err}>{error}</Text> : !ready ? (
-        <Text style={styles.hint}>Введи имя, чтобы играть</Text>
+        <Text style={styles.hint}>{t("menu.enterName")}</Text>
       ) : null}
     </View>
   );

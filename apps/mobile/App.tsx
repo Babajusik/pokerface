@@ -3,6 +3,7 @@ import { SafeAreaView, View, Text, StyleSheet, ActivityIndicator } from "react-n
 import { StatusBar } from "expo-status-bar";
 import { colors } from "./src/theme";
 import { useGame } from "./src/net/useGame";
+import { t, useLang } from "./src/i18n";
 import { getSettings, saveSettings } from "./src/settings";
 import { MainMenuScreen } from "./src/screens/MainMenuScreen";
 import { CreateGameScreen } from "./src/screens/CreateGameScreen";
@@ -14,6 +15,7 @@ import { GameScreen } from "./src/screens/GameScreen";
 type Route = "menu" | "create" | "list" | "settings";
 
 export default function App() {
+  useLang();
   const game = useGame();
   const { status, snapshot, error, mySessionId, roomId } = game;
   const [route, setRoute] = useState<Route>("menu");
@@ -114,13 +116,13 @@ export default function App() {
       {connecting && !inRoom && (
         <View style={styles.overlay}>
           <ActivityIndicator color={colors.accent} size="large" />
-          <Text style={styles.overlayText}>Подключение…</Text>
+          <Text style={styles.overlayText}>{t("app.connecting")}</Text>
         </View>
       )}
       {status === "reconnecting" && (
         <View style={styles.overlay}>
           <ActivityIndicator color={colors.accent} size="large" />
-          <Text style={styles.overlayText}>Связь потеряна. Переподключаемся…</Text>
+          <Text style={styles.overlayText}>{t("app.reconnecting")}</Text>
         </View>
       )}
     </SafeAreaView>
