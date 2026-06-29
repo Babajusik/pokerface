@@ -28,6 +28,7 @@ export function LiveKitVideo({
   hostId,
   detectActive = false,
   onSmile,
+  onMediaReady,
 }: {
   roomName: string;
   identity: string;
@@ -36,6 +37,7 @@ export function LiveKitVideo({
   hostId: string;
   detectActive?: boolean;
   onSmile?: () => void;
+  onMediaReady?: (ready: boolean) => void;
 }) {
   const roomRef = useRef<Room | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -64,9 +66,12 @@ export function LiveKitVideo({
         }
         localStreamRef.current = stream;
         setCameraMsg("");
+        // Гейт старта: сообщаем серверу, что камера И микрофон подключены.
+        onMediaReady?.(stream.getVideoTracks().length > 0 && stream.getAudioTracks().length > 0);
         rerender();
       } catch (e: any) {
         // Нет доступа к камере/микрофону — видео/детект/голос не идут.
+        onMediaReady?.(false);
         const denied = e?.name === "NotAllowedError" || e?.name === "SecurityError";
         setCameraMsg(
           denied

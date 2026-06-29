@@ -21,6 +21,7 @@ async function spawnBot(index: number) {
   let eliminated = false;
 
   room.send(ClientMsg.SetReady, { ready: true });
+  room.send(ClientMsg.MediaReady, { ready: true }); // у ботов «камеры/микрофон» условно есть
 
   // host (первый бот) запускает игру, когда все подключились
   if (index === 0) {

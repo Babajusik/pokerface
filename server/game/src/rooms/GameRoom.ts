@@ -78,6 +78,13 @@ export class GameRoom extends Room<GameState> {
       const p = this.state.players.get(client.sessionId);
       if (p) p.faceVisible = true;
     });
+
+    this.onMessage(ClientMsg.MediaReady, (client, msg: { ready?: boolean }) => {
+      if (this.rateLimited(client)) return;
+      if (typeof msg?.ready !== "boolean") return;
+      const p = this.state.players.get(client.sessionId);
+      if (p) p.mediaReady = msg.ready;
+    });
   }
 
   // Скользящее окно: true = клиент превысил лимит сообщений, игнорируем.
@@ -177,6 +184,8 @@ export class GameRoom extends Room<GameState> {
     if (client.sessionId !== this.state.hostId) return; // только host
     if (this.state.phase !== Phase.Lobby) return;
     if (this.state.players.size < GAME_CONFIG.minPlayersToStart) return;
+    // Старт только когда у всех подключены камера и микрофон.
+    if (![...this.state.players.values()].every((p) => p.mediaReady)) return;
 
     this.setPhase(Phase.Countdown);
     this.clock.setTimeout(() => this.beginRound(), GAME_CONFIG.countdownMs);

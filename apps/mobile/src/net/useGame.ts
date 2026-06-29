@@ -18,6 +18,7 @@ export interface PlayerView {
   faceVisible: boolean;
   ready: boolean;
   connected: boolean;
+  mediaReady: boolean;
 }
 
 export interface GameSnapshot {
@@ -88,6 +89,7 @@ export function useGame() {
         faceVisible: p.faceVisible,
         ready: p.ready,
         connected: p.connected ?? true,
+        mediaReady: p.mediaReady ?? false,
       });
     });
     setSnapshot({
@@ -242,6 +244,10 @@ export function useGame() {
     roomRef.current?.send(ClientMsg.SetReady, { ready });
   }, []);
 
+  const setMediaReady = useCallback((ready: boolean) => {
+    roomRef.current?.send(ClientMsg.MediaReady, { ready });
+  }, []);
+
   const startGame = useCallback(() => {
     roomRef.current?.send(ClientMsg.StartGame);
   }, []);
@@ -278,6 +284,6 @@ export function useGame() {
   return {
     status, error, snapshot, mySessionId, roomId, taunt, itemEffect,
     createGame, joinById, joinByCode, quickPlay,
-    setReady, startGame, rematch, smile, useItem, leave, reset,
+    setReady, setMediaReady, startGame, rematch, smile, useItem, leave, reset,
   };
 }

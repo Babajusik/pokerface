@@ -51,6 +51,7 @@ export default function App() {
         onUseItem={game.useItem}
         onRematch={game.rematch}
         onLeave={game.leave}
+        onMediaReady={game.setMediaReady}
       />
     ) : (
       <LobbyScreen
@@ -60,6 +61,7 @@ export default function App() {
         onReady={game.setReady}
         onStart={game.startGame}
         onLeave={game.leave}
+        onMediaReady={game.setMediaReady}
       />
     );
   } else if (route === "create") {

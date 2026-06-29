@@ -20,6 +20,7 @@ export function GameScreen({
   onUseItem,
   onRematch,
   onLeave,
+  onMediaReady,
 }: {
   snapshot: GameSnapshot;
   mySessionId: string;
@@ -30,6 +31,7 @@ export function GameScreen({
   onUseItem: (itemId: string, targetId: string) => void;
   onRematch: () => void;
   onLeave: () => void;
+  onMediaReady: (ready: boolean) => void;
 }) {
   const me = snapshot.players.find((p) => p.id === mySessionId);
   const gameOver = snapshot.phase === "game_over";
@@ -133,6 +135,7 @@ export function GameScreen({
           hostId={snapshot.hostId}
           detectActive={playing}
           onSmile={onSmile}
+          onMediaReady={onMediaReady}
         />
       </ScrollView>
 

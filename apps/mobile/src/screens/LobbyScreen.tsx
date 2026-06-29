@@ -12,6 +12,7 @@ export function LobbyScreen({
   onReady,
   onStart,
   onLeave,
+  onMediaReady,
 }: {
   snapshot: GameSnapshot;
   mySessionId: string;
@@ -19,10 +20,13 @@ export function LobbyScreen({
   onReady: (ready: boolean) => void;
   onStart: () => void;
   onLeave: () => void;
+  onMediaReady: (ready: boolean) => void;
 }) {
   const me = snapshot.players.find((p) => p.id === mySessionId);
   const isHost = snapshot.hostId === mySessionId;
   const allReady = snapshot.players.length >= 2 && snapshot.players.every((p) => p.ready);
+  const allMedia = snapshot.players.every((p) => p.mediaReady); // камера+микрофон у всех
+  const canStart = allReady && allMedia;
   const counting = snapshot.phase === "countdown";
 
   // Локальный отсчёт 3-2-1
@@ -72,6 +76,7 @@ export function LobbyScreen({
               {p.id === snapshot.hostId ? "👑 " : ""}
               {p.name}
               {p.id === mySessionId ? " (ты)" : ""}
+              {!p.mediaReady ? " 📷…" : ""}
             </Text>
             <Text style={[styles.status, p.ready ? styles.ready : styles.notReady]}>
               {p.ready ? "готов ✓" : "не готов"}
@@ -88,6 +93,7 @@ export function LobbyScreen({
           name={me?.name || "Игрок"}
           players={snapshot.players}
           hostId={snapshot.hostId}
+          onMediaReady={onMediaReady}
         />
       </ScrollView>
 
@@ -107,8 +113,8 @@ export function LobbyScreen({
             </Pressable>
             {isHost && (
               <Pressable
-                style={[styles.btn, styles.btnStart, !allReady && styles.disabled]}
-                disabled={!allReady}
+                style={[styles.btn, styles.btnStart, !canStart && styles.disabled]}
+                disabled={!canStart}
                 onPress={onStart}
               >
                 <Text style={styles.startText}>НАЧАТЬ</Text>
@@ -117,6 +123,8 @@ export function LobbyScreen({
           </View>
           {isHost && !allReady ? (
             <Text style={styles.hint}>Нужно ≥2 игроков, и все должны быть готовы</Text>
+          ) : isHost && !allMedia ? (
+            <Text style={styles.hint}>Ждём камеру и микрофон у всех игроков…</Text>
           ) : null}
         </>
       )}

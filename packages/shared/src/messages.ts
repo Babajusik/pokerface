@@ -18,6 +18,7 @@ export const ClientMsg = {
   FaceFound: "face_found",
   Rematch: "rematch",
   UseItem: "use_item",
+  MediaReady: "media_ready",   // камера+микрофон подключены у игрока
 } as const;
 
 /** Сервер → Клиент (поверх авто-синка состояния комнаты). */
