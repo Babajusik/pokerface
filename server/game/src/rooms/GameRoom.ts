@@ -21,6 +21,9 @@ const VALID_ITEM_IDS = new Set<string>(ITEMS.map((it) => it.id));
 // Лёгкий анти-флуд: не больше N сообщений в окне на клиента.
 const MSG_RATE_MAX = 25;
 const MSG_RATE_WINDOW_MS = 1000;
+// Анти-чит «прячет лицо»: грейс до предупреждения и до штрафа.
+const HIDE_WARN_MS = 3000;
+const HIDE_PENALTY_MS = 8000; // ~5с после предупреждения держит лицо скрытым → карточка
 
 export class GameRoom extends Room<GameState> {
   maxClients = 16;
@@ -28,6 +31,7 @@ export class GameRoom extends Room<GameState> {
   hostLevel: HostLevel = "normal";
   private startedAt = 0;
   private tauntTimer?: any;
+  private hideTimer?: any;
   private itemState = new Map<string, { lastAt: number; uses: Record<string, number> }>();
   private msgRate = new Map<string, number[]>();
 
@@ -71,12 +75,19 @@ export class GameRoom extends Room<GameState> {
     this.onMessage(ClientMsg.FaceLost, (client) => {
       if (this.rateLimited(client)) return;
       const p = this.state.players.get(client.sessionId);
-      if (p) p.faceVisible = false;
+      if (p && p.faceVisible) {
+        p.faceVisible = false;
+        p.faceLostAt = Date.now(); // засекаем начало «пропажи» лица
+      }
     });
     this.onMessage(ClientMsg.FaceFound, (client) => {
       if (this.rateLimited(client)) return;
       const p = this.state.players.get(client.sessionId);
-      if (p) p.faceVisible = true;
+      if (p) {
+        p.faceVisible = true;
+        p.faceLostAt = 0;
+        p.hidingWarn = false;
+      }
     });
 
     this.onMessage(ClientMsg.MediaReady, (client, msg: { ready?: boolean }) => {
@@ -178,6 +189,10 @@ export class GameRoom extends Room<GameState> {
       this.tauntTimer.clear();
       this.tauntTimer = undefined;
     }
+    if (this.hideTimer) {
+      this.hideTimer.clear();
+      this.hideTimer = undefined;
+    }
   }
 
   private tryStart(client: Client) {
@@ -199,12 +214,16 @@ export class GameRoom extends Room<GameState> {
       p.eliminated = false;
       p.survivedMs = 0;
       p.lastCardAt = 0;
+      p.faceVisible = true;
+      p.faceLostAt = 0;
+      p.hidingWarn = false;
     }
     this.state.winnerId = "";
     this.resetItems();
     this.setPhase(Phase.Playing);
     this.taunt("hype");
     this.tauntTimer = this.clock.setInterval(() => this.taunt("hype"), 9000);
+    this.hideTimer = this.clock.setInterval(() => this.checkHiding(), 1000);
   }
 
   private resetItems() {
@@ -257,12 +276,15 @@ export class GameRoom extends Room<GameState> {
     if (this.state.phase !== Phase.Playing) return;
     const p = this.state.players.get(client.sessionId);
     if (!p || p.eliminated) return;
+    if (Date.now() - p.lastCardAt < GAME_CONFIG.cardCooldownMs) return; // кулдаун
+    this.addCard(p);
+  }
 
+  // Выдать карточку (улыбка ИЛИ скрытое лицо) + обработать вылет/победителя.
+  private addCard(p: Player) {
     const now = Date.now();
-    if (now - p.lastCardAt < GAME_CONFIG.cardCooldownMs) return; // кулдаун
     p.lastCardAt = now;
     p.cards += 1;
-
     const color = p.cards >= GAME_CONFIG.maxCards ? "red" : "yellow";
     this.broadcast(ServerMsg.CardIssued, { playerId: p.id, cards: p.cards, color });
     console.log(`[room ${this.roomId}] ${p.name}: ${color} (${p.cards}/${GAME_CONFIG.maxCards})`);
@@ -277,6 +299,24 @@ export class GameRoom extends Room<GameState> {
       this.checkWinner();
     } else {
       this.taunt("card", p.name);
+    }
+  }
+
+  // Анти-чит: кто прячет лицо дольше грейса — предупреждение, затем карточка.
+  private checkHiding() {
+    if (this.state.phase !== Phase.Playing) return;
+    const now = Date.now();
+    for (const p of this.state.players.values()) {
+      if (p.eliminated || p.faceVisible || !p.faceLostAt) continue;
+      const hidden = now - p.faceLostAt;
+      if (hidden >= HIDE_PENALTY_MS) {
+        p.hidingWarn = false;
+        p.faceLostAt = now; // сброс грейса до следующего штрафа
+        console.log(`[room ${this.roomId}] ${p.name}: штраф за скрытое лицо`);
+        this.addCard(p);
+      } else if (hidden >= HIDE_WARN_MS && !p.hidingWarn) {
+        p.hidingWarn = true;
+      }
     }
   }
 

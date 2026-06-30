@@ -30,6 +30,7 @@ export function LiveKitVideo({
   detectActive = false,
   onSmile,
   onMediaReady,
+  onFace,
 }: {
   roomName: string;
   identity: string;
@@ -39,6 +40,7 @@ export function LiveKitVideo({
   detectActive?: boolean;
   onSmile?: () => void;
   onMediaReady?: (ready: boolean) => void;
+  onFace?: (visible: boolean) => void;
 }) {
   useLang();
   const roomRef = useRef<Room | null>(null);
@@ -196,6 +198,12 @@ export function LiveKitVideo({
   useEffect(() => {
     onSmileRef.current = onSmile;
   }, [onSmile]);
+  const onFaceRef = useRef(onFace);
+  useEffect(() => {
+    onFaceRef.current = onFace;
+  }, [onFace]);
+  const faceReportedRef = useRef(true); // что в последний раз сказали серверу про лицо
+  const faceGoneSinceRef = useRef(0);   // когда лицо начало пропадать (мс), 0 = видно
 
   useEffect(() => {
     if (!detectActive) return;
@@ -204,6 +212,8 @@ export function LiveKitVideo({
     let lm: FaceLandmarker | null = null;
     let lastT = -1;
     smileRef.current.reset();
+    faceReportedRef.current = true;
+    faceGoneSinceRef.current = 0;
 
     async function run() {
       try {
@@ -245,6 +255,18 @@ export function LiveKitVideo({
         }
         setSmileProb(p);
         if (smileRef.current.push(p, face, now)) onSmileRef.current?.();
+        // Анти-чит «прячет лицо»: репорт серверу с антидребезгом ~600мс,
+        // чтобы кратковременная потеря трекинга не считалась за чит.
+        if (face) {
+          faceGoneSinceRef.current = 0;
+          if (!faceReportedRef.current) { faceReportedRef.current = true; onFaceRef.current?.(true); }
+        } else {
+          if (faceGoneSinceRef.current === 0) faceGoneSinceRef.current = now;
+          if (faceReportedRef.current && now - faceGoneSinceRef.current > 600) {
+            faceReportedRef.current = false;
+            onFaceRef.current?.(false);
+          }
+        }
       }
       raf = requestAnimationFrame(loop);
     }
@@ -410,6 +432,7 @@ export function LiveKitVideo({
                 {isMe ? t("common.you") : p.name}
                 {p.ready && !p.eliminated ? " ✓" : ""}
                 {!p.connected ? " ⏳" : ""}
+                {p.hidingWarn ? " ⚠️" : ""}
               </Text>
             </View>
           );

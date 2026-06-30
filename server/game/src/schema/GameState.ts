@@ -11,10 +11,12 @@ export class Player extends Schema {
   @type("boolean") ready = false;
   @type("boolean") connected = true;     // false = обрыв связи, держим место (реконнект)
   @type("boolean") mediaReady = false;   // камера+микрофон подключены (гейт старта)
+  @type("boolean") hidingWarn = false;   // прячет лицо дольше грейса — предупреждение
   @type("uint32") survivedMs = 0;
 
   // серверное (не синкается):
   lastCardAt = 0;
+  faceLostAt = 0;                        // когда лицо пропало (0 = видно)
 }
 
 export class GameState extends Schema {

@@ -79,6 +79,7 @@ const ru: Dict = {
   "game.eliminated": "Ты вылетел. Жди финала…",
   "game.from": "от {name}",
   "game.gag": "🔊 {name} врубил гэг!",
+  "game.showFace": "👀 Покажи лицо в камеру! Прячешься — получишь карточку.",
   // видео
   "video.disabled": "📹 Видео выключено. Добавь ключи LiveKit в server/game/.env и перезапусти сервер.",
   "video.vpn": "📡 Видео недоступно — в сетях РФ LiveKit обычно нужен VPN. Игра и детект работают и без видео. ({err})",
@@ -176,6 +177,7 @@ const en: Dict = {
   "game.eliminated": "You're out. Wait for the finale…",
   "game.from": "from {name}",
   "game.gag": "🔊 {name} dropped a gag!",
+  "game.showFace": "👀 Show your face! Hiding gets you a card.",
   "video.disabled": "📹 Video off. Add LiveKit keys to server/game/.env and restart the server.",
   "video.vpn": "📡 Video unavailable — in RU networks LiveKit usually needs a VPN. The game and detection work without video. ({err})",
   "video.camDenied": "📷🎤 Camera/microphone access denied. Allow it in your browser settings.",

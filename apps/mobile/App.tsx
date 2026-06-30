@@ -9,8 +9,7 @@ import { MainMenuScreen } from "./src/screens/MainMenuScreen";
 import { CreateGameScreen } from "./src/screens/CreateGameScreen";
 import { LobbyListScreen } from "./src/screens/LobbyListScreen";
 import { SettingsScreen } from "./src/screens/SettingsScreen";
-import { LobbyScreen } from "./src/screens/LobbyScreen";
-import { GameScreen } from "./src/screens/GameScreen";
+import { RoomScreen } from "./src/screens/RoomScreen";
 
 type Route = "menu" | "create" | "list" | "settings";
 
@@ -22,7 +21,6 @@ export default function App() {
   const [name, setName] = useState(getSettings().name);
 
   const inRoom = status === "connected";
-  const inGame = snapshot.phase === "playing" || snapshot.phase === "game_over";
   const connecting = status === "connecting";
 
   // Зашли в комнату → сбрасываем маршрут на меню, чтобы после выхода вернуться в меню,
@@ -42,28 +40,21 @@ export default function App() {
 
   let content: React.ReactNode;
   if (inRoom) {
-    content = inGame ? (
-      <GameScreen
+    content = (
+      <RoomScreen
         snapshot={snapshot}
         mySessionId={mySessionId}
         roomId={roomId}
         taunt={game.taunt}
         itemEffect={game.itemEffect}
+        onReady={game.setReady}
+        onStart={game.startGame}
         onSmile={game.smile}
         onUseItem={game.useItem}
         onRematch={game.rematch}
         onLeave={game.leave}
         onMediaReady={game.setMediaReady}
-      />
-    ) : (
-      <LobbyScreen
-        snapshot={snapshot}
-        mySessionId={mySessionId}
-        roomId={roomId}
-        onReady={game.setReady}
-        onStart={game.startGame}
-        onLeave={game.leave}
-        onMediaReady={game.setMediaReady}
+        onFace={game.reportFace}
       />
     );
   } else if (route === "create") {
