@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from "react-native";
 import { colors } from "../theme";
-import type { HostLevel } from "@pokerface/shared";
+import { GameMode, type HostLevel } from "@pokerface/shared";
 import type { CreateOpts } from "../net/useGame";
 import { t, useLang } from "../i18n";
 
@@ -23,6 +23,15 @@ export function CreateGameScreen({
   const [isPrivate, setIsPrivate] = useState(false);
   const [maxPlayers, setMaxPlayers] = useState(8);
   const [hostLevel, setHostLevel] = useState<HostLevel>("normal");
+  const [mode, setMode] = useState<GameMode>(GameMode.Classic);
+
+  // Режимы: id, ключ подписи, доступен ли (ai/board — бета/скоро).
+  const modes: { id: GameMode; label: string; beta?: boolean }[] = [
+    { id: GameMode.Classic, label: t("mode.classic") },
+    { id: GameMode.Judge, label: t("mode.judge") },
+    { id: GameMode.Board, label: t("mode.board") },
+    { id: GameMode.AI, label: t("mode.ai"), beta: true },
+  ];
 
   return (
     <View style={styles.wrap}>
@@ -35,6 +44,24 @@ export function CreateGameScreen({
       <View style={styles.body}>
         <Text style={styles.label}>{t("create.lobbyName")}</Text>
         <TextInput style={styles.input} value={lobbyName} onChangeText={setLobbyName} maxLength={24} />
+
+        <Text style={styles.label}>{t("create.mode")}</Text>
+        <View style={styles.modeRow}>
+          {modes.map((m) => {
+            const on = mode === m.id;
+            return (
+              <Pressable
+                key={m.id}
+                style={[styles.modeBtn, on && styles.segOn, m.beta && styles.modeDim]}
+                disabled={!!m.beta}
+                onPress={() => setMode(m.id)}
+              >
+                <Text style={[styles.segText, on && styles.segTextOn]}>{m.label}</Text>
+                {m.beta ? <Text style={styles.betaTag}>{t("mode.beta")}</Text> : null}
+              </Pressable>
+            );
+          })}
+        </View>
 
         <Text style={styles.label}>{t("create.access")}</Text>
         <View style={styles.row}>
@@ -78,7 +105,7 @@ export function CreateGameScreen({
         <Pressable
           style={({ pressed }) => [styles.create, pressed && { transform: [{ scale: 0.98 }] }, connecting && styles.dim]}
           disabled={connecting}
-          onPress={() => onCreate({ lobbyName: lobbyName.trim() || t("lobby.defaultName"), isPrivate, maxPlayers, hostLevel })}
+          onPress={() => onCreate({ lobbyName: lobbyName.trim() || t("lobby.defaultName"), isPrivate, maxPlayers, hostLevel, mode })}
         >
           {connecting ? <ActivityIndicator color="#10210a" /> : <Text style={styles.createText}>{t("create.submit")}</Text>}
         </Pressable>
@@ -101,6 +128,10 @@ const styles = StyleSheet.create({
   segOn: { borderColor: colors.accent, backgroundColor: "rgba(200,242,80,0.14)" },
   segText: { color: colors.muted, fontWeight: "700" },
   segTextOn: { color: colors.accent },
+  modeRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  modeBtn: { minWidth: "47%", flexGrow: 1, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panel, alignItems: "center" },
+  modeDim: { opacity: 0.5 },
+  betaTag: { color: colors.muted, fontSize: 10, fontWeight: "700", marginTop: 2, textTransform: "uppercase", letterSpacing: 1 },
   step: { width: 52, height: 52, borderRadius: 12, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
   stepText: { color: colors.text, fontSize: 26, fontWeight: "800" },
   maxNum: { color: colors.text, fontSize: 22, fontWeight: "800", minWidth: 40, textAlign: "center" },

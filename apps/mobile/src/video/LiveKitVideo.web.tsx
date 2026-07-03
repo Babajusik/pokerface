@@ -28,9 +28,15 @@ export function LiveKitVideo({
   players,
   hostId,
   detectActive = false,
+  roundActive = false,
   onSmile,
   onMediaReady,
   onFace,
+  mode = "classic",
+  judgeId = "",
+  smileLevels = {},
+  onSmileLevel,
+  onJudgeCard,
 }: {
   roomName: string;
   identity: string;
@@ -38,9 +44,15 @@ export function LiveKitVideo({
   players: PlayerView[];
   hostId: string;
   detectActive?: boolean;
+  roundActive?: boolean;
   onSmile?: () => void;
   onMediaReady?: (ready: boolean) => void;
   onFace?: (visible: boolean) => void;
+  mode?: string;
+  judgeId?: string;
+  smileLevels?: Record<string, number>;
+  onSmileLevel?: (p: number) => void;
+  onJudgeCard?: (targetId: string) => void;
 }) {
   useLang();
   const roomRef = useRef<Room | null>(null);
@@ -204,6 +216,11 @@ export function LiveKitVideo({
   }, [onFace]);
   const faceReportedRef = useRef(true); // что в последний раз сказали серверу про лицо
   const faceGoneSinceRef = useRef(0);   // когда лицо начало пропадать (мс), 0 = видно
+  const onSmileLevelRef = useRef(onSmileLevel);
+  useEffect(() => { onSmileLevelRef.current = onSmileLevel; }, [onSmileLevel]);
+  const modeRef = useRef(mode);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
+  const lastLevelSentRef = useRef(0);
 
   useEffect(() => {
     if (!detectActive) return;
@@ -255,6 +272,13 @@ export function LiveKitVideo({
         }
         setSmileProb(p);
         if (smileRef.current.push(p, face, now)) onSmileRef.current?.();
+        // Режим судьи: шлём свой % судье (через сервер), не чаще ~5/сек.
+        if (modeRef.current === "judge" && onSmileLevelRef.current) {
+          if (now - lastLevelSentRef.current > 200) {
+            lastLevelSentRef.current = now;
+            onSmileLevelRef.current(face ? p : 0);
+          }
+        }
         // Анти-чит «прячет лицо»: репорт серверу с антидребезгом ~600мс,
         // чтобы кратковременная потеря трекинга не считалась за чит.
         if (face) {
@@ -337,6 +361,9 @@ export function LiveKitVideo({
         if (nav.canShare?.({ files: [file] })) nav.share({ files: [file], title: "PokerFace" });
       });
   }
+
+  const judgeMode = mode === "judge";
+  const myIsJudge = judgeMode && identity === judgeId; // я — судья
 
   if (status === "disabled") {
     return (
@@ -423,17 +450,28 @@ export function LiveKitVideo({
                 {p.cards > 0 && (
                   <Text style={styles.cardBadge}>{p.cards >= 2 ? "🟥" : "🟨"}</Text>
                 )}
-                {isMe && detectActive && (
+                {/* Свой % — только в НЕ судейских режимах */}
+                {isMe && detectActive && !judgeMode && (
                   <Text style={styles.smile}>{Math.round(smileProb * 100)}%</Text>
+                )}
+                {/* Судья видит % каждого игрока */}
+                {myIsJudge && roundActive && p.id !== judgeId && (
+                  <Text style={styles.judgeLevel}>{Math.round((smileLevels[p.id] ?? 0) * 100)}%</Text>
                 )}
               </View>
               <Text style={styles.name} numberOfLines={1}>
-                {p.id === hostId ? "👑 " : ""}
+                {judgeMode && p.id === judgeId ? "👨‍⚖️ " : p.id === hostId ? "👑 " : ""}
                 {isMe ? t("common.you") : p.name}
                 {p.ready && !p.eliminated ? " ✓" : ""}
                 {!p.connected ? " ⏳" : ""}
                 {p.hidingWarn ? " ⚠️" : ""}
               </Text>
+              {/* Кнопка судьи: выдать карточку (жёлтая → красная) */}
+              {myIsJudge && roundActive && p.id !== judgeId && !p.eliminated && (
+                <Pressable style={styles.judgeCardBtn} onPress={() => onJudgeCard?.(p.id)}>
+                  <Text style={styles.judgeCardText}>{p.cards >= 1 ? "🟥 Красная" : "🟨 Жёлтая"}</Text>
+                </Pressable>
+              )}
             </View>
           );
         })}
@@ -467,6 +505,9 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   name: { color: colors.text, padding: 8, fontSize: 13, fontWeight: "600" },
+  judgeLevel: { position: "absolute", bottom: 6, left: 8, color: colors.accent, fontSize: 15, fontWeight: "800", backgroundColor: "rgba(0,0,0,0.6)", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  judgeCardBtn: { marginHorizontal: 6, marginBottom: 8, backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingVertical: 8, alignItems: "center" },
+  judgeCardText: { color: colors.text, fontSize: 12, fontWeight: "700" },
   note: { color: colors.muted, textAlign: "center", marginVertical: 8 },
   banner: {
     padding: 12,

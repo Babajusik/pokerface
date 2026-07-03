@@ -1,7 +1,7 @@
 import { Room, Client } from "colyseus";
 import { GameState, Player } from "../schema/GameState";
 import {
-  GAME_CONFIG, Phase, ClientMsg, ServerMsg,
+  GAME_CONFIG, Phase, ClientMsg, ServerMsg, GameMode,
   pickJoke, HostLevel, JokeCtx,
   ITEMS, ItemId, ITEM_COOLDOWN_MS, randomMeme, randomSticker,
 } from "@pokerface/shared";
@@ -14,7 +14,10 @@ interface CreateOptions {
   maxPlayers?: number;
   code?: string;
   hostLevel?: HostLevel;
+  mode?: string;
 }
+
+const VALID_MODES = new Set<string>(Object.values(GameMode));
 
 // Допустимые id предметов — для валидации входящих UseItem.
 const VALID_ITEM_IDS = new Set<string>(ITEMS.map((it) => it.id));
@@ -43,6 +46,7 @@ export class GameRoom extends Room<GameState> {
     this.code = options.code || Math.random().toString(36).slice(2, 8).toUpperCase();
     this.state.code = this.code;
     this.hostLevel = options.hostLevel || "normal";
+    this.state.mode = VALID_MODES.has(options.mode || "") ? (options.mode as string) : GameMode.Classic;
     if (options.isPrivate) this.setPrivate(true);
     this.syncMetadata();
 
@@ -96,6 +100,53 @@ export class GameRoom extends Room<GameState> {
       const p = this.state.players.get(client.sessionId);
       if (p) p.mediaReady = msg.ready;
     });
+
+    // ── Режим «ведущий-человек» ──
+    // Host назначает судью (или снимает: playerId = "").
+    this.onMessage(ClientMsg.SetJudge, (client, msg: { playerId?: string }) => {
+      if (this.rateLimited(client)) return;
+      if (client.sessionId !== this.state.hostId) return;
+      if (this.state.phase !== Phase.Lobby || this.state.mode !== GameMode.Judge) return;
+      const id = String(msg?.playerId || "");
+      if (id && !this.state.players.has(id)) return;
+      this.state.judgeId = id;
+    });
+
+    // Игрок шлёт свой % улыбки — сервер пересылает ТОЛЬКО судье (не утекает другим).
+    this.onMessage(ClientMsg.SmileLevel, (client, msg: { p?: number }) => {
+      if (this.rateLimited(client)) return;
+      if (this.state.mode !== GameMode.Judge || this.state.phase !== Phase.Playing) return;
+      if (client.sessionId === this.state.judgeId) return;
+      const level = Math.max(0, Math.min(1, Number(msg?.p) || 0));
+      const judge = this.clients.find((c) => c.sessionId === this.state.judgeId);
+      if (judge) judge.send(ServerMsg.SmileLevel, { playerId: client.sessionId, p: level });
+    });
+
+    // Судья выдаёт карточку игроку (жёлтая → красная, как обычно).
+    this.onMessage(ClientMsg.JudgeCard, (client, msg: { targetId?: string }) => {
+      if (this.rateLimited(client)) return;
+      if (this.state.mode !== GameMode.Judge || this.state.phase !== Phase.Playing) return;
+      if (client.sessionId !== this.state.judgeId) return;
+      const target = this.state.players.get(String(msg?.targetId || ""));
+      if (!target || target.eliminated || target.id === this.state.judgeId) return;
+      if (Date.now() - target.lastCardAt < 700) return; // анти-дабл-тап
+      this.addCard(target);
+    });
+
+    // ── Режим «доска»: релеим операции всем, кроме отправителя ──
+    this.onMessage(ClientMsg.BoardOp, (client, op: any) => {
+      if (this.rateLimited(client)) return;
+      if (this.state.mode !== GameMode.Board) return;
+      if (!op || typeof op.kind !== "string") return;
+      const p = this.state.players.get(client.sessionId);
+      const payload = { ...op, from: p?.name || "" };
+      this.broadcast(ServerMsg.BoardOp, payload, { except: client });
+    });
+  }
+
+  // Является ли игрок участником (в режиме судьи судья — не участник).
+  private isContestant(p: Player): boolean {
+    return this.state.mode !== GameMode.Judge || p.id !== this.state.judgeId;
   }
 
   // Скользящее окно: true = клиент превысил лимит сообщений, игнорируем.
@@ -150,6 +201,7 @@ export class GameRoom extends Room<GameState> {
     if (this.state.hostId === sessionId) {
       this.state.hostId = [...this.state.players.keys()][0] || "";
     }
+    if (this.state.judgeId === sessionId) this.state.judgeId = ""; // судья вышел — снимаем
     if (this.state.phase === Phase.Playing) this.checkWinner();
   }
 
@@ -198,9 +250,16 @@ export class GameRoom extends Room<GameState> {
   private tryStart(client: Client) {
     if (client.sessionId !== this.state.hostId) return; // только host
     if (this.state.phase !== Phase.Lobby) return;
-    if (this.state.players.size < GAME_CONFIG.minPlayersToStart) return;
     // Старт только когда у всех подключены камера и микрофон.
     if (![...this.state.players.values()].every((p) => p.mediaReady)) return;
+    if (this.state.mode === GameMode.Judge) {
+      // Нужен назначенный судья + минимум участников (не считая судью).
+      if (!this.state.judgeId || !this.state.players.has(this.state.judgeId)) return;
+      const contestants = [...this.state.players.values()].filter((p) => p.id !== this.state.judgeId).length;
+      if (contestants < GAME_CONFIG.minPlayersToStart) return;
+    } else {
+      if (this.state.players.size < GAME_CONFIG.minPlayersToStart) return;
+    }
 
     this.setPhase(Phase.Countdown);
     this.clock.setTimeout(() => this.beginRound(), GAME_CONFIG.countdownMs);
@@ -274,6 +333,7 @@ export class GameRoom extends Room<GameState> {
 
   private handleSmile(client: Client) {
     if (this.state.phase !== Phase.Playing) return;
+    if (this.state.mode === GameMode.Judge) return; // в режиме судьи карточки выдаёт человек
     const p = this.state.players.get(client.sessionId);
     if (!p || p.eliminated) return;
     if (Date.now() - p.lastCardAt < GAME_CONFIG.cardCooldownMs) return; // кулдаун
@@ -294,7 +354,7 @@ export class GameRoom extends Room<GameState> {
       p.survivedMs = now - this.startedAt;
       this.broadcast(ServerMsg.PlayerEliminated, { playerId: p.id });
       this.taunt("out", p.name);
-      const alive = [...this.state.players.values()].filter((x) => !x.eliminated);
+      const alive = [...this.state.players.values()].filter((x) => this.isContestant(x) && !x.eliminated);
       if (alive.length === 2) this.taunt("duel");
       this.checkWinner();
     } else {
@@ -305,6 +365,7 @@ export class GameRoom extends Room<GameState> {
   // Анти-чит: кто прячет лицо дольше грейса — предупреждение, затем карточка.
   private checkHiding() {
     if (this.state.phase !== Phase.Playing) return;
+    if (this.state.mode === GameMode.Judge) return; // в режиме судьи следит человек
     const now = Date.now();
     for (const p of this.state.players.values()) {
       if (p.eliminated || p.faceVisible || !p.faceLostAt) continue;
@@ -322,7 +383,7 @@ export class GameRoom extends Room<GameState> {
 
   private checkWinner() {
     if (this.state.phase !== Phase.Playing) return;
-    const alive = [...this.state.players.values()].filter((p) => !p.eliminated);
+    const alive = [...this.state.players.values()].filter((p) => this.isContestant(p) && !p.eliminated);
     if (alive.length <= 1) {
       this.state.winnerId = alive[0]?.id || "";
       this.setPhase(Phase.GameOver);

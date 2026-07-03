@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { View, Text, Pressable, StyleSheet, ScrollView } from "react-native";
 import { colors } from "../theme";
 import { LiveKitVideo } from "../video/LiveKitVideo";
+import { BoardCanvas } from "../board/BoardCanvas";
 import { playSound, playGag } from "../sound";
 import { speak, stopSpeak } from "../speak";
 import { recordMatch } from "../stats";
@@ -27,6 +28,12 @@ export function RoomScreen({
   onLeave,
   onMediaReady,
   onFace,
+  smileLevels,
+  onSetJudge,
+  onSmileLevel,
+  onJudgeCard,
+  sendBoardOp,
+  subscribeBoard,
 }: {
   snapshot: GameSnapshot;
   mySessionId: string;
@@ -41,6 +48,12 @@ export function RoomScreen({
   onLeave: () => void;
   onMediaReady: (ready: boolean) => void;
   onFace: (visible: boolean) => void;
+  smileLevels: Record<string, number>;
+  onSetJudge: (playerId: string) => void;
+  onSmileLevel: (p: number) => void;
+  onJudgeCard: (targetId: string) => void;
+  sendBoardOp: (op: any) => void;
+  subscribeBoard: (fn: (op: any) => void) => () => void;
 }) {
   useLang();
   const me = snapshot.players.find((p) => p.id === mySessionId);
@@ -51,11 +64,15 @@ export function RoomScreen({
   const gameOver = phase === "game_over";
   const winner = snapshot.players.find((p) => p.id === snapshot.winnerId);
   const iWon = snapshot.winnerId === mySessionId;
-  const playing = phase === "playing" && !me?.eliminated;
+  const judgeMode = snapshot.mode === "judge";
+  const meIsJudge = judgeMode && snapshot.judgeId === mySessionId;
+  const roundActive = phase === "playing";
+  const playing = roundActive && !me?.eliminated && !meIsJudge; // detectActive: судья не детектит
 
   const allReady = snapshot.players.length >= 2 && snapshot.players.every((p) => p.ready);
   const allMedia = snapshot.players.every((p) => p.mediaReady);
-  const canStart = allReady && allMedia;
+  const judgePicked = !judgeMode || !!snapshot.judgeId;
+  const canStart = allReady && allMedia && judgePicked;
 
   // ── Отсчёт 3-2-1 (лобби) ──
   const [count, setCount] = useState(3);
@@ -160,19 +177,28 @@ export function RoomScreen({
               </View>
             </View>
             <View style={styles.roster}>
-              {snapshot.players.map((p, i) => (
-                <View key={p.id} style={[styles.row, i > 0 && styles.rowBorder]}>
-                  <Text style={styles.name} numberOfLines={1}>
-                    {p.id === snapshot.hostId ? "👑 " : ""}
-                    {p.name}
-                    {p.id === mySessionId ? t("lobby.youSuffix") : ""}
-                    {!p.mediaReady ? " 📷…" : ""}
-                  </Text>
-                  <Text style={[styles.status, p.ready ? styles.ready : styles.notReady]}>
-                    {p.ready ? t("lobby.ready") : t("lobby.notReady")}
-                  </Text>
-                </View>
-              ))}
+              {snapshot.players.map((p, i) => {
+                const isJudge = judgeMode && p.id === snapshot.judgeId;
+                const pickable = isHost && judgeMode && phase === "lobby";
+                return (
+                  <Pressable
+                    key={p.id}
+                    style={[styles.row, i > 0 && styles.rowBorder, isJudge && styles.rowJudge]}
+                    disabled={!pickable}
+                    onPress={() => onSetJudge(isJudge ? "" : p.id)}
+                  >
+                    <Text style={styles.name} numberOfLines={1}>
+                      {isJudge ? "👨‍⚖️ " : p.id === snapshot.hostId ? "👑 " : ""}
+                      {p.name}
+                      {p.id === mySessionId ? t("lobby.youSuffix") : ""}
+                      {!p.mediaReady ? " 📷…" : ""}
+                    </Text>
+                    <Text style={[styles.status, isJudge ? styles.judgeStatus : p.ready ? styles.ready : styles.notReady]}>
+                      {isJudge ? t("judge.badge") : p.ready ? t("lobby.ready") : t("lobby.notReady")}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
           </>
         ) : (
@@ -192,10 +218,19 @@ export function RoomScreen({
           players={snapshot.players}
           hostId={snapshot.hostId}
           detectActive={playing}
+          roundActive={roundActive}
           onSmile={onSmile}
           onMediaReady={onMediaReady}
           onFace={onFace}
+          mode={snapshot.mode}
+          judgeId={snapshot.judgeId}
+          smileLevels={smileLevels}
+          onSmileLevel={onSmileLevel}
+          onJudgeCard={onJudgeCard}
         />
+        {snapshot.mode === "board" && roundActive ? (
+          <BoardCanvas sendBoardOp={sendBoardOp} subscribeBoard={subscribeBoard} />
+        ) : null}
       </ScrollView>
 
       {/* ── НИЗ (index 2): контролы по фазе. ── */}
@@ -224,7 +259,9 @@ export function RoomScreen({
                   </Pressable>
                 )}
               </View>
-              {isHost && !allReady ? (
+              {isHost && judgeMode && !snapshot.judgeId ? (
+                <Text style={styles.hint}>{t("judge.pick")}</Text>
+              ) : isHost && !allReady ? (
                 <Text style={styles.hint}>{t("lobby.needPlayers")}</Text>
               ) : isHost && !allMedia ? (
                 <Text style={styles.hint}>{t("lobby.waitMedia")}</Text>
@@ -244,10 +281,18 @@ export function RoomScreen({
               <Text style={styles.rematchText}>{t("game.rematch")}</Text>
             </Pressable>
           </View>
+        ) : meIsJudge ? (
+          <View style={styles.devArea}>
+            <Text style={styles.hint}>{t("judge.you")}</Text>
+          </View>
         ) : me?.eliminated ? (
           <View style={styles.resultBox}>
             <Text style={styles.resultEmoji}>💀</Text>
             <Text style={styles.resultText}>{t("game.eliminated")}</Text>
+          </View>
+        ) : snapshot.mode === "board" ? (
+          <View style={styles.devArea}>
+            <Text style={styles.cardsLine}>{me ? t("game.cards", { n: me.cards }) : "—"}</Text>
           </View>
         ) : (
           <View style={styles.devArea}>
@@ -350,6 +395,8 @@ const styles = StyleSheet.create({
   status: { fontSize: 15, fontWeight: "700" },
   ready: { color: colors.green },
   notReady: { color: colors.muted },
+  rowJudge: { backgroundColor: "rgba(200,242,80,0.08)" },
+  judgeStatus: { color: colors.accent, fontWeight: "800" },
   // видео
   scroll: { paddingVertical: 10 },
   // лобби-контролы

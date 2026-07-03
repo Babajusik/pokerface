@@ -25,6 +25,8 @@ export class GameState extends Schema {
   @type("string") code = "";
   @type("uint8") maxPlayers = 8;
   @type("string") hostId = "";
+  @type("string") mode = "classic";      // режим игры (classic/judge/ai/board)
+  @type("string") judgeId = "";          // выбранный судья (режим judge)
   @type({ map: Player }) players = new MapSchema<Player>();
   @type("uint32") roundStartedAt = 0;
   @type("string") winnerId = "";

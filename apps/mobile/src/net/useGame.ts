@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Client, Room } from "colyseus.js";
-import { ClientMsg, ServerMsg, Phase, HostLevel } from "@pokerface/shared";
+import { ClientMsg, ServerMsg, Phase, HostLevel, GameMode } from "@pokerface/shared";
 import { SERVER_ENDPOINT, TOKEN_BASE } from "./config";
 import { t } from "../i18n";
 
@@ -9,6 +9,7 @@ export interface CreateOpts {
   isPrivate: boolean;
   maxPlayers: number;
   hostLevel: HostLevel;
+  mode: GameMode;
 }
 
 export interface PlayerView {
@@ -30,12 +31,14 @@ export interface GameSnapshot {
   maxPlayers: number;
   hostId: string;
   winnerId: string;
+  mode: string;
+  judgeId: string;
   players: PlayerView[];
 }
 
 export type Status = "idle" | "connecting" | "connected" | "reconnecting" | "error";
 
-const EMPTY: GameSnapshot = { phase: Phase.Lobby, lobbyName: "", code: "", maxPlayers: 8, hostId: "", winnerId: "", players: [] };
+const EMPTY: GameSnapshot = { phase: Phase.Lobby, lobbyName: "", code: "", maxPlayers: 8, hostId: "", winnerId: "", mode: "classic", judgeId: "", players: [] };
 
 // Превращаем ошибку подключения Colyseus в понятный игроку текст.
 // Коды матчмейкинга Colyseus: 4210–4214 (нет хендлера/невалидно/нет комнаты/…).
@@ -68,10 +71,13 @@ export function useGame() {
   const [itemEffect, setItemEffect] = useState<{
     itemId: string; text?: string; sticker?: string; fromName: string; ts: number;
   }>({ itemId: "", fromName: "", ts: 0 });
+  // % улыбки игроков — приходит ТОЛЬКО судье (режим judge).
+  const [smileLevels, setSmileLevels] = useState<Record<string, number>>({});
   const roomRef = useRef<Room | null>(null);
   const clientRef = useRef<Client | null>(null);
   const intentionalRef = useRef(false);          // true = пользователь сам вышел
   const reconnectRef = useRef<(token: string) => void>(() => {});
+  const boardListenersRef = useRef<Set<(op: any) => void>>(new Set()); // подписчики на доску
 
   // Единый Colyseus-клиент (нужен для reconnect по токену).
   const getClient = useCallback(() => {
@@ -102,6 +108,8 @@ export function useGame() {
       maxPlayers: state.maxPlayers,
       hostId: state.hostId,
       winnerId: state.winnerId,
+      mode: state.mode ?? "classic",
+      judgeId: state.judgeId ?? "",
       players,
     });
   }, []);
@@ -123,6 +131,12 @@ export function useGame() {
       room.onMessage(ServerMsg.ItemUsed, (m: any) => {
         if (m.targetId === room.sessionId)
           setItemEffect({ itemId: m.itemId, text: m.text, sticker: m.sticker, fromName: m.fromName, ts: Date.now() });
+      });
+      room.onMessage(ServerMsg.SmileLevel, (m: { playerId: string; p: number }) => {
+        setSmileLevels((prev) => ({ ...prev, [m.playerId]: m.p }));
+      });
+      room.onMessage(ServerMsg.BoardOp, (op: any) => {
+        boardListenersRef.current.forEach((fn) => fn(op));
       });
       room.onLeave((code: number) => {
         roomRef.current = null;
@@ -198,6 +212,7 @@ export function useGame() {
           isPrivate: opts.isPrivate,
           maxPlayers: opts.maxPlayers,
           hostLevel: opts.hostLevel,
+          mode: opts.mode,
         })
       ),
     [run, getClient]
@@ -256,6 +271,28 @@ export function useGame() {
     roomRef.current?.send(visible ? ClientMsg.FaceFound : ClientMsg.FaceLost);
   }, []);
 
+  // ── Режим «ведущий-человек» ──
+  const setJudge = useCallback((playerId: string) => {
+    roomRef.current?.send(ClientMsg.SetJudge, { playerId });
+  }, []);
+  const sendSmileLevel = useCallback((p: number) => {
+    roomRef.current?.send(ClientMsg.SmileLevel, { p });
+  }, []);
+  const judgeCard = useCallback((targetId: string) => {
+    roomRef.current?.send(ClientMsg.JudgeCard, { targetId });
+  }, []);
+
+  // ── Режим «доска» ──
+  const sendBoardOp = useCallback((op: any) => {
+    roomRef.current?.send(ClientMsg.BoardOp, op);
+  }, []);
+  const subscribeBoard = useCallback((fn: (op: any) => void) => {
+    boardListenersRef.current.add(fn);
+    return () => {
+      boardListenersRef.current.delete(fn);
+    };
+  }, []);
+
   const startGame = useCallback(() => {
     roomRef.current?.send(ClientMsg.StartGame);
   }, []);
@@ -290,8 +327,10 @@ export function useGame() {
   }, []);
 
   return {
-    status, error, snapshot, mySessionId, roomId, taunt, itemEffect,
+    status, error, snapshot, mySessionId, roomId, taunt, itemEffect, smileLevels,
     createGame, joinById, joinByCode, quickPlay,
-    setReady, setMediaReady, reportFace, startGame, rematch, smile, useItem, leave, reset,
+    setReady, setMediaReady, reportFace, setJudge, sendSmileLevel, judgeCard,
+    sendBoardOp, subscribeBoard,
+    startGame, rematch, smile, useItem, leave, reset,
   };
 }

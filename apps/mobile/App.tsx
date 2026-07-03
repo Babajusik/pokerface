@@ -55,6 +55,12 @@ export default function App() {
         onLeave={game.leave}
         onMediaReady={game.setMediaReady}
         onFace={game.reportFace}
+        smileLevels={game.smileLevels}
+        onSetJudge={game.setJudge}
+        onSmileLevel={game.sendSmileLevel}
+        onJudgeCard={game.judgeCard}
+        sendBoardOp={game.sendBoardOp}
+        subscribeBoard={game.subscribeBoard}
       />
     );
   } else if (route === "create") {
