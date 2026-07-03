@@ -69,7 +69,11 @@ export function RoomScreen({
   const roundActive = phase === "playing";
   const playing = roundActive && !me?.eliminated && !meIsJudge; // detectActive: судья не детектит
 
-  const allReady = snapshot.players.length >= 2 && snapshot.players.every((p) => p.ready);
+  // Участников (в режиме судьи судья не считается) должно быть ≥2.
+  const contestantsCount = judgeMode
+    ? snapshot.players.filter((p) => p.id !== snapshot.judgeId).length
+    : snapshot.players.length;
+  const allReady = contestantsCount >= 2 && snapshot.players.every((p) => p.ready);
   const allMedia = snapshot.players.every((p) => p.mediaReady);
   const judgePicked = !judgeMode || !!snapshot.judgeId;
   const canStart = allReady && allMedia && judgePicked;

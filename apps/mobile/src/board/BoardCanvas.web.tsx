@@ -1,25 +1,92 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet } from "react-native";
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator } from "react-native";
 import { colors } from "../theme";
 import { t, useLang } from "../i18n";
+import { searchGifs, hasGiphy, type GifResult } from "./giphy";
 
-// Общая доска (web): рисование + текст + очистка, синхронно у всех.
-// Координаты нормализованы (0..1), чтобы одинаково рисовать на разных экранах.
-// Штрихи батчатся и рассылаются через onBoardOp; входящие — через subscribeBoard.
+// Общая доска (web): рисование + текст + медиа (фото/гиф/видео по ссылке) + очистка,
+// синхронно у всех. Координаты нормализованы (0..1) — одинаково на любых экранах.
+// Штрихи батчатся и рассылаются через sendBoardOp; входящие — через subscribeBoard.
 
 const W = 960;
 const H = 540; // 16:9 логический холст
 const PALETTE = ["#c8f250", "#ff5b5b", "#ffd24a", "#ffffff", "#111111", "#4aa3ff"];
+const VIDEO_RE = /\.(mp4|webm|ogg|mov)(\?|#|$)/i;
+
+// Распознаём YouTube/Vimeo, чтобы встроить их через iframe (обычные ссылки — это
+// веб-страницы, а не файлы, и в <video> не играют).
+function youtubeId(url: string): string | null {
+  const m = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([\w-]{11})/);
+  return m ? m[1] : null;
+}
+function vimeoId(url: string): string | null {
+  const m = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+  return m ? m[1] : null;
+}
 
 type Pt = [number, number];
+type Tool = "draw" | "text" | "media" | "gif";
+interface MediaItem { id: string; url: string; x: number; y: number }
 interface BoardOp {
-  kind: "stroke" | "text" | "clear";
+  kind: "stroke" | "text" | "clear" | "media";
   color?: string;
   w?: number;
   pts?: Pt[];
   x?: number;
   y?: number;
   text?: string;
+  id?: string;
+  url?: string;
+}
+
+// Определяет embed-ссылку и пропорции для видео-сервисов (iframe).
+function iframeEmbed(url: string): { src: string; aspect: string } | null {
+  const yt = youtubeId(url);
+  if (yt) return { src: `https://www.youtube.com/embed/${yt}?autoplay=1&mute=1&loop=1&playlist=${yt}&controls=0&playsinline=1`, aspect: "16 / 9" };
+  const vim = vimeoId(url);
+  if (vim) return { src: `https://player.vimeo.com/video/${vim}?autoplay=1&muted=1&loop=1&background=1`, aspect: "16 / 9" };
+  // VK Video: .../video{oid}_{id}
+  const vk = url.match(/video(-?\d+)_(\d+)/);
+  if (vk && /vk(?:video)?\.(?:com|ru)/i.test(url)) return { src: `https://vk.com/video_ext.php?oid=${vk[1]}&id=${vk[2]}&hd=2&autoplay=1`, aspect: "16 / 9" };
+  // Rutube
+  const rt = url.match(/rutube\.ru\/(?:video|play\/embed|shorts)\/([0-9a-f]+)/i);
+  if (rt) return { src: `https://rutube.ru/play/embed/${rt[1]}`, aspect: "16 / 9" };
+  // TikTok (вертикальное)
+  const tt = url.match(/tiktok\.com\/(?:@[\w.-]+\/video\/|embed\/v2\/|player\/v1\/)(\d+)/);
+  if (tt) return { src: `https://www.tiktok.com/player/v1/${tt[1]}?autoplay=1&muted=1&loop=1&description=0&music_info=0`, aspect: "9 / 16" };
+  return null;
+}
+
+// Возвращает нужный DOM-элемент для медиа по URL (iframe / video / img).
+function mediaEl(m: MediaItem) {
+  const base: any = {
+    position: "absolute",
+    left: `${m.x * 100}%`,
+    top: `${m.y * 100}%`,
+    transform: "translate(-50%, -50%)",
+    borderRadius: 8,
+    border: "none",
+    objectFit: "contain",
+    pointerEvents: "auto", // по медиа можно кликнуть (play), рисуем в пустых местах
+  };
+  const emb = iframeEmbed(m.url);
+  if (emb) {
+    const vertical = emb.aspect === "9 / 16";
+    return React.createElement("iframe", {
+      key: m.id,
+      src: emb.src,
+      allow: "autoplay; encrypted-media; picture-in-picture; fullscreen",
+      allowFullScreen: true,
+      style: { ...base, width: vertical ? "22%" : "36%", aspectRatio: emb.aspect },
+    });
+  }
+  if (VIDEO_RE.test(m.url)) {
+    return React.createElement("video", {
+      key: m.id, src: m.url, autoPlay: true, loop: true, muted: true, playsInline: true, controls: true,
+      style: { ...base, width: "36%" },
+    });
+  }
+  return React.createElement("img", { key: m.id, src: m.url, style: { ...base, width: "34%" } });
 }
 
 export function BoardCanvas({
@@ -33,14 +100,21 @@ export function BoardCanvas({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const [color, setColor] = useState(PALETTE[0]);
-  const [tool, setTool] = useState<"draw" | "text">("draw");
-  const [text, setText] = useState("");
+  const [tool, setTool] = useState<Tool>("draw");
+  const [value, setValue] = useState(""); // текст ИЛИ ссылка (по режиму)
+  const [media, setMedia] = useState<MediaItem[]>([]);
+  const [gifQuery, setGifQuery] = useState("");
+  const [gifResults, setGifResults] = useState<GifResult[]>([]);
+  const [gifLoading, setGifLoading] = useState(false);
+  const [selectedGif, setSelectedGif] = useState<string | null>(null);
+  const selectedGifRef = useRef(selectedGif);
+  useEffect(() => { selectedGifRef.current = selectedGif; }, [selectedGif]);
   const colorRef = useRef(color);
   const toolRef = useRef(tool);
-  const textRef = useRef(text);
+  const valueRef = useRef(value);
   useEffect(() => { colorRef.current = color; }, [color]);
   useEffect(() => { toolRef.current = tool; }, [tool]);
-  useEffect(() => { textRef.current = text; }, [text]);
+  useEffect(() => { valueRef.current = value; }, [value]);
 
   // рисование
   const drawing = useRef(false);
@@ -78,9 +152,14 @@ export function BoardCanvas({
     c.fillText((op.text || "").slice(0, 80), (op.x || 0) * W, (op.y || 0) * H);
   }
   function applyOp(op: BoardOp) {
+    if (op.kind === "media") {
+      if (!op.url || !op.id) return;
+      setMedia((prev) => (prev.some((m) => m.id === op.id) ? prev : [...prev, { id: op.id!, url: op.url!, x: op.x || 0, y: op.y || 0 }]));
+      return;
+    }
     const c = ctx();
     if (!c) return;
-    if (op.kind === "clear") c.clearRect(0, 0, W, H);
+    if (op.kind === "clear") { c.clearRect(0, 0, W, H); setMedia([]); }
     else if (op.kind === "stroke") drawStroke(c, op);
     else if (op.kind === "text") drawText(c, op);
   }
@@ -111,12 +190,23 @@ export function BoardCanvas({
     const c = ctx();
     if (!c) return;
     const p = norm(e);
-    // Режим текста: клик ставит текст.
-    if (toolRef.current === "text" && textRef.current.trim()) {
-      const op: BoardOp = { kind: "text", color: colorRef.current, x: p[0], y: p[1], text: textRef.current.trim() };
-      applyOp(op);
-      sendBoardOp(op);
-      setText(""); // очищаем для следующего, режим текста остаётся активным
+    // Текст: клик ставит текст.
+    if (toolRef.current === "text" && valueRef.current.trim()) {
+      const op: BoardOp = { kind: "text", color: colorRef.current, x: p[0], y: p[1], text: valueRef.current.trim() };
+      applyOp(op); sendBoardOp(op); setValue("");
+      return;
+    }
+    // Медиа: клик ставит фото/гиф/видео по ссылке.
+    if (toolRef.current === "media" && valueRef.current.trim()) {
+      const url = valueRef.current.trim();
+      const op: BoardOp = { kind: "media", id: Math.random().toString(36).slice(2), url, x: p[0], y: p[1] };
+      applyOp(op); sendBoardOp(op); setValue("");
+      return;
+    }
+    // GIF: выбрана гифка → клик ставит её в это место.
+    if (toolRef.current === "gif" && selectedGifRef.current) {
+      const op: BoardOp = { kind: "media", id: Math.random().toString(36).slice(2), url: selectedGifRef.current, x: p[0], y: p[1] };
+      applyOp(op); sendBoardOp(op);
       return;
     }
     drawing.current = true;
@@ -155,6 +245,22 @@ export function BoardCanvas({
     sendBoardOp({ kind: "clear" });
   }
 
+  // Поиск гифок (GIPHY) с дебаунсом.
+  useEffect(() => {
+    if (tool !== "gif" || !gifQuery.trim()) { setGifResults([]); return; }
+    let cancelled = false;
+    setGifLoading(true);
+    const id = setTimeout(async () => {
+      const r = await searchGifs(gifQuery);
+      if (!cancelled) { setGifResults(r); setGifLoading(false); }
+    }, 350);
+    return () => { cancelled = true; clearTimeout(id); };
+  }, [gifQuery, tool]);
+
+
+  const inputMode = tool === "text" || tool === "media";
+  const cursor = tool === "text" ? "text" : (tool === "media" || (tool === "gif" && selectedGif)) ? "copy" : "crosshair";
+
   return (
     <View style={styles.wrap}>
       <View style={styles.tools}>
@@ -175,46 +281,97 @@ export function BoardCanvas({
         })}
         <Pressable
           style={[styles.toolBtn, tool === "text" && styles.toolBtnOn]}
-          onPress={() => setTool(tool === "text" ? "draw" : "text")}
+          onPress={() => { setTool(tool === "text" ? "draw" : "text"); setValue(""); }}
         >
           <Text style={[styles.toolText, tool === "text" && styles.toolTextOn]}>✏️ {t("board.text")}</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.toolBtn, tool === "media" && styles.toolBtnOn]}
+          onPress={() => { setTool(tool === "media" ? "draw" : "media"); setValue(""); }}
+        >
+          <Text style={[styles.toolText, tool === "media" && styles.toolTextOn]}>🖼 {t("board.media")}</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.toolBtn, tool === "gif" && styles.toolBtnOn]}
+          onPress={() => { setTool(tool === "gif" ? "draw" : "gif"); setSelectedGif(null); }}
+        >
+          <Text style={[styles.toolText, tool === "gif" && styles.toolTextOn]}>🎞 {t("board.gif")}</Text>
         </Pressable>
         <Pressable style={styles.toolBtn} onPress={clearBoard}>
           <Text style={styles.toolText}>🗑 {t("board.clear")}</Text>
         </Pressable>
       </View>
 
-      {tool === "text" ? (
+      {inputMode ? (
         <View>
           <TextInput
             style={styles.textInput}
-            value={text}
-            onChangeText={setText}
-            placeholder={t("board.textPlaceholder")}
+            value={value}
+            onChangeText={setValue}
+            placeholder={tool === "text" ? t("board.textPlaceholder") : t("board.mediaPlaceholder")}
             placeholderTextColor={colors.muted}
-            maxLength={80}
+            maxLength={tool === "text" ? 80 : 400}
             autoFocus
           />
-          <Text style={styles.textHint}>{t("board.textHint")}</Text>
+          <Text style={styles.textHint}>{tool === "text" ? t("board.textHint") : t("board.mediaHint")}</Text>
         </View>
       ) : null}
 
-      {React.createElement("canvas", {
-        ref: (el: HTMLCanvasElement | null) => { canvasRef.current = el; },
-        onPointerDown: onDown,
-        onPointerMove: onMove,
-        onPointerUp: onUp,
-        onPointerLeave: onUp,
-        style: {
-          width: "100%",
-          aspectRatio: "16 / 9",
-          background: "#0b0d12",
-          borderRadius: 12,
-          border: `1px solid ${colors.border}`,
-          touchAction: "none",
-          cursor: tool === "text" ? "text" : "crosshair",
-        },
-      })}
+      {tool === "gif" ? (
+        <View style={styles.gifPanel}>
+          {!hasGiphy() ? (
+            <Text style={styles.textHint}>{t("board.gifNoKey")}</Text>
+          ) : (
+            <>
+              <TextInput
+                style={styles.textInput}
+                value={gifQuery}
+                onChangeText={setGifQuery}
+                placeholder={t("board.gifSearch")}
+                placeholderTextColor={colors.muted}
+                autoFocus
+              />
+              {gifLoading ? <ActivityIndicator color={colors.accent} style={{ marginTop: 6 }} /> : null}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.gifRow}>
+                {gifResults.map((g) => (
+                  <Pressable
+                    key={g.id}
+                    onPress={() => setSelectedGif(g.url)}
+                    style={[styles.gifThumb, selectedGif === g.url && styles.gifThumbOn]}
+                  >
+                    {React.createElement("img", { src: g.thumb, style: { height: 96, borderRadius: 8, display: "block" } })}
+                  </Pressable>
+                ))}
+              </ScrollView>
+              {selectedGif ? <Text style={styles.textHint}>{t("board.gifPickHint")}</Text> : null}
+            </>
+          )}
+        </View>
+      ) : null}
+
+      <View style={styles.canvasWrap}>
+        {React.createElement("canvas", {
+          ref: (el: HTMLCanvasElement | null) => { canvasRef.current = el; },
+          onPointerDown: onDown,
+          onPointerMove: onMove,
+          onPointerUp: onUp,
+          onPointerLeave: onUp,
+          style: {
+            width: "100%",
+            aspectRatio: "16 / 9",
+            display: "block",
+            background: "#0b0d12",
+            borderRadius: 12,
+            border: `1px solid ${colors.border}`,
+            touchAction: "none",
+            cursor,
+          },
+        })}
+        {/* Слой медиа — поверх холста, не перехватывает клики (рисуем сквозь него) */}
+        <View style={styles.mediaLayer} pointerEvents="none">
+          {media.map((m) => mediaEl(m))}
+        </View>
+      </View>
     </View>
   );
 }
@@ -230,4 +387,10 @@ const styles = StyleSheet.create({
   toolTextOn: { color: colors.accent },
   textInput: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.accent, borderRadius: 10, padding: 12, color: colors.text, fontSize: 15 },
   textHint: { color: colors.accent, fontSize: 12, fontWeight: "600", textAlign: "center", marginTop: 6 },
+  canvasWrap: { position: "relative", width: "100%" },
+  mediaLayer: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
+  gifPanel: { gap: 6 },
+  gifRow: { gap: 8, paddingVertical: 6, alignItems: "center" },
+  gifThumb: { borderRadius: 8, overflow: "hidden", borderWidth: 2, borderColor: "transparent" },
+  gifThumbOn: { borderColor: colors.accent },
 });

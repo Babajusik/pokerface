@@ -117,6 +117,25 @@ LIVEKIT_API_SECRET = <тот же secret>
 
 ---
 
+## GIF-прокси (режим «Доска», GIF-поиск)
+
+На том же VPS/стеке (`/opt/livekit`) крутится крошечный прокси к GIPHY — чтобы
+GIF-поиск работал из РФ без VPN и ключ GIPHY не светился в клиенте.
+
+- **`gif-server.js`** — Node http-сервер на порту `8790`, проксирует
+  `GET /gif?q=...` → `api.giphy.com/v1/gifs/search` (ключ из env `GIPHY_KEY`),
+  добавляет `Access-Control-Allow-Origin: *`.
+- **docker-compose** — сервис `gifproxy` (`node:20-alpine`, `network_mode: host`,
+  env `GIPHY_KEY`, монтирует `gif-server.js`).
+- **Caddyfile** — маршрутизация по пути:
+  `handle /gif* → localhost:8790`, `handle → localhost:7880` (LiveKit).
+- Клиент зовёт `https://pokerface-lk.duckdns.org/gif?q=...`
+  (можно переопределить env `EXPO_PUBLIC_GIF_PROXY`), парсит ответ GIPHY.
+- Порт 8790 наружу открывать НЕ нужно (только Caddy на localhost).
+- Обновить конфиг Caddy: `docker compose restart caddy`.
+
+---
+
 ## Заметки
 - Один небольшой VPS тянет несколько лобби (видео идёт через SFU, нагрузка в
   основном на трафик, не на CPU).
