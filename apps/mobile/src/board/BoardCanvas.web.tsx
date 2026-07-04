@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator } from "react-native";
 import { colors } from "../theme";
 import { t, useLang } from "../i18n";
-import { searchGifs, hasGiphy, type GifResult } from "./giphy";
+import { searchGifs, hasGiphy, uploadFile, type GifResult } from "./giphy";
 
 // Общая доска (web): рисование + текст + медиа (фото/гиф/видео по ссылке) + очистка,
 // синхронно у всех. Координаты нормализованы (0..1) — одинаково на любых экранах.
@@ -27,6 +27,8 @@ function vimeoId(url: string): string | null {
 type Pt = [number, number];
 type Tool = "draw" | "text" | "media" | "gif";
 interface MediaItem { id: string; url: string; x: number; y: number }
+// Единый объект слоя (текст ИЛИ медиа) — порядок в массиве = z-порядок (новые сверху).
+interface BoardItem { id: string; kind: "text" | "media"; x: number; y: number; text?: string; color?: string; url?: string }
 interface BoardOp {
   kind: "stroke" | "text" | "clear" | "media";
   color?: string;
@@ -67,7 +69,7 @@ function mediaEl(m: MediaItem) {
     borderRadius: 8,
     border: "none",
     objectFit: "contain",
-    pointerEvents: "auto", // по медиа можно кликнуть (play), рисуем в пустых местах
+    pointerEvents: "none", // слой не перехватывает клики — ставить/рисовать можно везде
   };
   const emb = iframeEmbed(m.url);
   if (emb) {
@@ -102,10 +104,13 @@ export function BoardCanvas({
   const [color, setColor] = useState(PALETTE[0]);
   const [tool, setTool] = useState<Tool>("draw");
   const [value, setValue] = useState(""); // текст ИЛИ ссылка (по режиму)
-  const [media, setMedia] = useState<MediaItem[]>([]);
+  const [items, setItems] = useState<BoardItem[]>([]); // текст+медиа, порядок = z-порядок
   const [gifQuery, setGifQuery] = useState("");
   const [gifResults, setGifResults] = useState<GifResult[]>([]);
   const [gifLoading, setGifLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadErr, setUploadErr] = useState("");
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [selectedGif, setSelectedGif] = useState<string | null>(null);
   const selectedGifRef = useRef(selectedGif);
   useEffect(() => { selectedGifRef.current = selectedGif; }, [selectedGif]);
@@ -146,22 +151,22 @@ export function BoardCanvas({
     for (let i = 1; i < pts.length; i++) c.lineTo(pts[i][0] * W, pts[i][1] * H);
     c.stroke();
   }
-  function drawText(c: CanvasRenderingContext2D, op: BoardOp) {
-    c.fillStyle = op.color || "#fff";
-    c.font = "bold 34px sans-serif";
-    c.fillText((op.text || "").slice(0, 80), (op.x || 0) * W, (op.y || 0) * H);
-  }
   function applyOp(op: BoardOp) {
-    if (op.kind === "media") {
-      if (!op.url || !op.id) return;
-      setMedia((prev) => (prev.some((m) => m.id === op.id) ? prev : [...prev, { id: op.id!, url: op.url!, x: op.x || 0, y: op.y || 0 }]));
+    if (op.kind === "media" || op.kind === "text") {
+      if (!op.id) return;
+      if (op.kind === "media" && !op.url) return;
+      if (op.kind === "text" && !op.text) return;
+      setItems((prev) =>
+        prev.some((i) => i.id === op.id)
+          ? prev
+          : [...prev, { id: op.id!, kind: op.kind as "text" | "media", x: op.x || 0, y: op.y || 0, text: op.text, color: op.color, url: op.url }]
+      );
       return;
     }
     const c = ctx();
     if (!c) return;
-    if (op.kind === "clear") { c.clearRect(0, 0, W, H); setMedia([]); }
+    if (op.kind === "clear") { c.clearRect(0, 0, W, H); setItems([]); }
     else if (op.kind === "stroke") drawStroke(c, op);
-    else if (op.kind === "text") drawText(c, op);
   }
 
   useEffect(() => {
@@ -192,7 +197,7 @@ export function BoardCanvas({
     const p = norm(e);
     // Текст: клик ставит текст.
     if (toolRef.current === "text" && valueRef.current.trim()) {
-      const op: BoardOp = { kind: "text", color: colorRef.current, x: p[0], y: p[1], text: valueRef.current.trim() };
+      const op: BoardOp = { kind: "text", id: Math.random().toString(36).slice(2), color: colorRef.current, x: p[0], y: p[1], text: valueRef.current.trim() };
       applyOp(op); sendBoardOp(op); setValue("");
       return;
     }
@@ -257,6 +262,22 @@ export function BoardCanvas({
     return () => { cancelled = true; clearTimeout(id); };
   }, [gifQuery, tool]);
 
+  // Загрузка файла с устройства → кладём URL в поле, дальше клик по доске ставит.
+  async function onFilePick(e: any) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploadErr("");
+    setUploading(true);
+    try {
+      const url = await uploadFile(file);
+      setValue(url);
+    } catch {
+      setUploadErr(t("board.uploadErr"));
+    } finally {
+      setUploading(false);
+    }
+  }
 
   const inputMode = tool === "text" || tool === "media";
   const cursor = tool === "text" ? "text" : (tool === "media" || (tool === "gif" && selectedGif)) ? "copy" : "crosshair";
@@ -314,6 +335,22 @@ export function BoardCanvas({
             autoFocus
           />
           <Text style={styles.textHint}>{tool === "text" ? t("board.textHint") : t("board.mediaHint")}</Text>
+          {tool === "media" ? (
+            <View style={styles.uploadRow}>
+              <Pressable style={styles.toolBtn} onPress={() => fileInputRef.current?.click()} disabled={uploading}>
+                <Text style={styles.toolText}>📁 {t("board.upload")}</Text>
+              </Pressable>
+              {uploading ? <ActivityIndicator color={colors.accent} /> : null}
+              {uploadErr ? <Text style={styles.uploadErr}>{uploadErr}</Text> : null}
+              {React.createElement("input", {
+                type: "file",
+                accept: "image/*,video/*",
+                ref: (el: any) => { fileInputRef.current = el; },
+                onChange: onFilePick,
+                style: { display: "none" },
+              })}
+            </View>
+          ) : null}
         </View>
       ) : null}
 
@@ -367,9 +404,33 @@ export function BoardCanvas({
             cursor,
           },
         })}
-        {/* Слой медиа — поверх холста, не перехватывает клики (рисуем сквозь него) */}
+        {/* Слой текст+медиа — поверх холста, не перехватывает клики (ставим/рисуем везде).
+            Порядок в массиве = z-порядок: новый объект рисуется поверх старых. */}
         <View style={styles.mediaLayer} pointerEvents="none">
-          {media.map((m) => mediaEl(m))}
+          {items.map((it) =>
+            it.kind === "media"
+              ? mediaEl({ id: it.id, url: it.url!, x: it.x, y: it.y })
+              : React.createElement(
+                  "div",
+                  {
+                    key: it.id,
+                    style: {
+                      position: "absolute",
+                      left: `${it.x * 100}%`,
+                      top: `${it.y * 100}%`,
+                      transform: "translate(-50%, -50%)",
+                      color: it.color || "#fff",
+                      fontWeight: 800,
+                      fontSize: 26,
+                      fontFamily: "sans-serif",
+                      whiteSpace: "nowrap",
+                      textShadow: "0 1px 3px rgba(0,0,0,0.7)",
+                      pointerEvents: "none",
+                    },
+                  },
+                  it.text
+                )
+          )}
         </View>
       </View>
     </View>
@@ -393,4 +454,6 @@ const styles = StyleSheet.create({
   gifRow: { gap: 8, paddingVertical: 6, alignItems: "center" },
   gifThumb: { borderRadius: 8, overflow: "hidden", borderWidth: 2, borderColor: "transparent" },
   gifThumbOn: { borderColor: colors.accent },
+  uploadRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 8 },
+  uploadErr: { color: colors.red, fontSize: 12, fontWeight: "600" },
 });

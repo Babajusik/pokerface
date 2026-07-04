@@ -84,6 +84,8 @@ const ru: Dict = {
   "board.gif": "GIF",
   "board.gifSearch": "Найди гифку по слову…",
   "board.gifPickHint": "👇 Кликни по доске, чтобы поставить гифку",
+  "board.upload": "Загрузить файл",
+  "board.uploadErr": "Не удалось загрузить файл",
   "board.gifNoKey": "GIF-поиск выключен: не задан ключ GIPHY (EXPO_PUBLIC_GIPHY_KEY).",
   "lobby.go": "GO!",
   // игра
@@ -204,6 +206,8 @@ const en: Dict = {
   "board.gif": "GIF",
   "board.gifSearch": "Search a GIF…",
   "board.gifPickHint": "👇 Click the board to place the GIF",
+  "board.upload": "Upload file",
+  "board.uploadErr": "Upload failed",
   "board.gifNoKey": "GIF search off: GIPHY key not set (EXPO_PUBLIC_GIPHY_KEY).",
   "lobby.go": "GO!",
   "game.over": "Game over",

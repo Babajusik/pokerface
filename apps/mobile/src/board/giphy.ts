@@ -3,9 +3,19 @@
 // Прокси: https://pokerface-lk.duckdns.org/gif?q=... → отдаёт ответ GIPHY.
 
 const PROXY = (process.env.EXPO_PUBLIC_GIF_PROXY as string) || "https://pokerface-lk.duckdns.org/gif";
+const UPLOAD = PROXY.replace(/\/gif$/, "/upload");
 
 export function hasGiphy(): boolean {
   return !!PROXY;
+}
+
+// Загрузка файла с устройства на наш VPS → возвращает публичный URL.
+export async function uploadFile(file: File): Promise<string> {
+  const res = await fetch(UPLOAD, { method: "POST", headers: { "content-type": file.type }, body: file });
+  if (!res.ok) throw new Error(`upload ${res.status}`);
+  const json = await res.json();
+  if (!json.url) throw new Error("no url");
+  return json.url as string;
 }
 
 export interface GifResult {
