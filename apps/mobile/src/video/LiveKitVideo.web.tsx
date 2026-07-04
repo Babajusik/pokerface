@@ -62,6 +62,7 @@ export function LiveKitVideo({
   const [status, setStatus] = useState<Status>("connecting");
   const [errMsg, setErrMsg] = useState("");
   const [cameraMsg, setCameraMsg] = useState("");
+  const [sharing, setSharing] = useState(false); // ведущий транслирует экран
   const [, setTick] = useState(0);
   const rerender = () => setTick((t) => t + 1);
 
@@ -126,7 +127,12 @@ export function LiveKitVideo({
           })
           .on(RoomEvent.ParticipantConnected, rerender)
           .on(RoomEvent.ParticipantDisconnected, rerender)
-          .on(RoomEvent.Disconnected, rerender);
+          .on(RoomEvent.Disconnected, rerender)
+          .on(RoomEvent.LocalTrackPublished, rerender)
+          .on(RoomEvent.LocalTrackUnpublished, (pub: any) => {
+            if (pub?.source === Track.Source.ScreenShare) setSharing(false);
+            rerender();
+          });
 
         await room.connect(wsUrl, token);
         if (cancelled) {
@@ -194,6 +200,37 @@ export function LiveKitVideo({
       s = new MediaStream([track]);
       cache.set(track.id, s);
     }
+    return s;
+  }
+
+  // --- Трансляция экрана ведущим (screen share) ---
+  async function toggleShare() {
+    const room = roomRef.current;
+    if (!room) return;
+    try {
+      const next = !sharing;
+      await room.localParticipant.setScreenShareEnabled(next);
+      setSharing(next);
+    } catch {
+      /* пользователь отменил выбор окна */
+    }
+  }
+
+  // Экран ведущего (для всех): локальный если я судья, иначе из LiveKit.
+  function judgeScreenStream(): MediaStream | null {
+    const room = roomRef.current;
+    if (mode !== "judge" || !judgeId || !room) return null;
+    let track: MediaStreamTrack | undefined;
+    if (judgeId === identity) {
+      track = room.localParticipant.getTrackPublication(Track.Source.ScreenShare)?.videoTrack?.mediaStreamTrack;
+    } else {
+      const rp = room.remoteParticipants.get(judgeId);
+      track = rp?.getTrackPublication(Track.Source.ScreenShare)?.videoTrack?.mediaStreamTrack;
+    }
+    if (!track) return null;
+    const cache = streamCacheRef.current;
+    let s = cache.get(track.id);
+    if (!s || s.getVideoTracks()[0] !== track) { s = new MediaStream([track]); cache.set(track.id, s); }
     return s;
   }
 
@@ -364,6 +401,7 @@ export function LiveKitVideo({
 
   const judgeMode = mode === "judge";
   const myIsJudge = judgeMode && identity === judgeId; // я — судья
+  const screen = judgeScreenStream();                  // экран ведущего (если транслирует)
 
   if (status === "disabled") {
     return (
@@ -375,6 +413,25 @@ export function LiveKitVideo({
 
   return (
     <View>
+      {/* Ведущий: кнопка трансляции своего экрана (можно и в лобби — для заготовок) */}
+      {myIsJudge && (
+        <Pressable style={[styles.shareBtn, sharing && styles.shareBtnOn]} onPress={toggleShare}>
+          <Text style={styles.shareBtnText}>{sharing ? t("share.stop") : t("share.start")}</Text>
+        </Pressable>
+      )}
+      {/* Экран ведущего — большой, по центру, виден всем */}
+      {screen ? (
+        <View style={styles.screenBox}>
+          {React.createElement("video", {
+            autoPlay: true,
+            playsInline: true,
+            muted: true,
+            ref: (el: HTMLVideoElement | null) => { if (el && el.srcObject !== screen) el.srcObject = screen; },
+            style: { width: "100%", borderRadius: 12, background: "#000", display: "block" },
+          })}
+        </View>
+      ) : null}
+
       {clipUrl ? (
         <View style={styles.clip}>
           <Text style={styles.clipTitle}>{t("video.clipTitle")}</Text>
@@ -481,6 +538,10 @@ export function LiveKitVideo({
 }
 
 const styles = StyleSheet.create({
+  shareBtn: { alignSelf: "center", backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.accent, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 18, marginBottom: 10 },
+  shareBtnOn: { backgroundColor: "rgba(200,242,80,0.16)" },
+  shareBtnText: { color: colors.accent, fontWeight: "800", fontSize: 14 },
+  screenBox: { width: "100%", maxWidth: 900, alignSelf: "center", marginBottom: 12, borderWidth: 2, borderColor: colors.accent, borderRadius: 14, overflow: "hidden", backgroundColor: "#000" },
   grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center" },
   tile: {
     width: 160,
