@@ -12,6 +12,7 @@ export function MainMenuScreen({
   onQuickPlay,
   onCreate,
   onFind,
+  onFriends,
   onSettings,
 }: {
   name: string;
@@ -20,6 +21,7 @@ export function MainMenuScreen({
   onQuickPlay: () => void;
   onCreate: () => void;
   onFind: () => void;
+  onFriends: () => void;
   onSettings: () => void;
 }) {
   useLang();
@@ -101,9 +103,14 @@ export function MainMenuScreen({
         <Pressable style={({ pressed }) => [styles.invite, pressed && styles.pressed]} onPress={invite}>
           <Text style={styles.inviteText}>{invited ? t("menu.inviteCopied") : t("menu.invite")}</Text>
         </Pressable>
-        <Pressable style={styles.ghost} onPress={onSettings}>
-          <Text style={styles.ghostText}>{t("menu.settings")}</Text>
-        </Pressable>
+        <View style={styles.pair}>
+          <Pressable style={({ pressed }) => [styles.btn2, pressed && styles.pressed]} onPress={onFriends}>
+            <Text style={styles.btn2Text}>{t("menu.friends")}</Text>
+          </Pressable>
+          <Pressable style={({ pressed }) => [styles.btn2, pressed && styles.pressed]} onPress={onSettings}>
+            <Text style={styles.btn2Text}>{t("menu.settings")}</Text>
+          </Pressable>
+        </View>
       </View>
 
       {error ? <Text style={styles.err}>{error}</Text> : !ready ? (

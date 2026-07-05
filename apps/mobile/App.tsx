@@ -9,9 +9,10 @@ import { MainMenuScreen } from "./src/screens/MainMenuScreen";
 import { CreateGameScreen } from "./src/screens/CreateGameScreen";
 import { LobbyListScreen } from "./src/screens/LobbyListScreen";
 import { SettingsScreen } from "./src/screens/SettingsScreen";
+import { FriendsScreen } from "./src/screens/FriendsScreen";
 import { RoomScreen } from "./src/screens/RoomScreen";
 
-type Route = "menu" | "create" | "list" | "settings";
+type Route = "menu" | "create" | "list" | "settings" | "friends";
 
 export default function App() {
   useLang();
@@ -92,6 +93,8 @@ export default function App() {
         }}
       />
     );
+  } else if (route === "friends") {
+    content = <FriendsScreen name={name} onBack={() => setRoute("menu")} />;
   } else {
     content = (
       <MainMenuScreen
@@ -101,6 +104,7 @@ export default function App() {
         onQuickPlay={() => game.quickPlay(name)}
         onCreate={() => { game.reset(); setRoute("create"); }}
         onFind={() => { game.reset(); setRoute("list"); }}
+        onFriends={() => setRoute("friends")}
         onSettings={() => setRoute("settings")}
       />
     );

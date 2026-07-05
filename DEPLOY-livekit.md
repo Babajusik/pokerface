@@ -138,6 +138,31 @@ GIF-поиск работал из РФ без VPN и ключ GIPHY не све
 
 ---
 
+## Друзья (API `/api/*`)
+
+На том же VPS/стеке (`/opt/livekit`) крутится сервис друзей — анонимные личности
+(id + короткий «код друга»), заявки и список друзей. Клиент ходит на `/api/*`
+через Caddy (работает из РФ без VPN, игровой сервер Render не участвует).
+
+- **`friends-server.js`** (версия в репо: `deploy/friends-server.js`) — Node http
+  без зависимостей, порт `8791`, хранилище — JSON `/data/friends.json`. Ручки (CORS `*`):
+  - `POST /api/register {nickname}` → `{id, code, nickname}` (создаёт игрока).
+  - `POST /api/me {id, nickname}` → синхронизация ника (404 если id неизвестен).
+  - `POST /api/friends/add {id, code}` → `{status}` (requested/friends/self/notfound/already).
+  - `GET  /api/friends?id=` → `{friends, incoming, outgoing}`.
+  - `POST /api/friends/respond {id, from, accept}` → приём/отклонение заявки.
+  - `POST /api/friends/remove {id, friend}` → удалить из друзей.
+- **docker-compose** — сервис `friendsproxy` (`node:20-alpine`, `network_mode: host`,
+  env `PORT=8791`/`DATA_FILE=/data/friends.json`, тома `./friends-server.js:/app/server.js`
+  и `./friends-data:/data`).
+- **Caddyfile** — matcher `@friends path /api*` → `handle → localhost:8791` (перед `@backend`).
+- Клиент: `apps/mobile/src/net/friends.ts` (базу переопределяет env `EXPO_PUBLIC_FRIENDS_API`).
+- Порт 8791 наружу открывать НЕ нужно (только Caddy на localhost).
+- Обновить: скопировать `friends-server.js`, затем `docker compose up -d friendsproxy`
+  и `docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile`.
+
+---
+
 ## Заметки
 - Один небольшой VPS тянет несколько лобби (видео идёт через SFU, нагрузка в
   основном на трафик, не на CPU).
