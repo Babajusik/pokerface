@@ -8,7 +8,7 @@ import { speak, stopSpeak } from "../speak";
 import { recordMatch } from "../stats";
 import { ITEMS, ITEM_COOLDOWN_MS } from "@pokerface/shared";
 import type { GameSnapshot } from "../net/useGame";
-import { listFriends, sendInvite, getIdentity, type Friend } from "../net/friends";
+import { listFriends, sendInvite, getIdentity, reportMatch, type Friend } from "../net/friends";
 import { t, useLang } from "../i18n";
 
 // Единый экран комнаты: лобби + игра в одном компоненте, чтобы LiveKitVideo
@@ -113,6 +113,7 @@ export function RoomScreen({
       if (phase === "game_over") {
         playSound(iWon ? "win" : "lose");
         recordMatch();
+        if (!meIsJudge && getIdentity()) reportMatch(iWon);
       }
       prevPhase.current = phase;
     }

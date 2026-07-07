@@ -64,7 +64,7 @@ function genCode() {
 function cleanNick(s) { return String(s || "").trim().slice(0, NICK_MAX); }
 function pairKey(a, b) { return a < b ? `${a}|${b}` : `${b}|${a}`; }
 function isOnline(id) { return !!seen[id] && Date.now() - seen[id] < ONLINE_MS; }
-function pub(id) { const u = db.users[id]; return u ? { id: u.id, code: u.code, nickname: u.nickname, online: isOnline(u.id) } : null; }
+function pub(id) { const u = db.users[id]; return u ? { id: u.id, code: u.code, nickname: u.nickname, avatar: u.avatar || "", played: u.played || 0, wins: u.wins || 0, online: isOnline(u.id) } : null; }
 function areFriends(a, b) { return !!db.friends[pairKey(a, b)]; }
 function pruneInvites() { const now = Date.now(); for (const k in invites) if (now - invites[k].ts > INVITE_TTL) delete invites[k]; }
 
@@ -117,17 +117,30 @@ const server = http.createServer(async (req, res) => {
       const { nickname } = await readBody(req);
       const id = crypto.randomUUID();
       const code = genCode();
-      db.users[id] = { id, code, nickname: cleanNick(nickname), created: Date.now() };
+      db.users[id] = { id, code, nickname: cleanNick(nickname), avatar: "", played: 0, wins: 0, created: Date.now() };
       codeIndex[code] = id;
       save();
       return send(res, 200, pub(id));
     }
 
-    // POST /api/me {id, nickname} -> {id, code, nickname} | 404
+    // POST /api/me {id, nickname?, avatar?} -> профиль | 404
+    // Без nickname/avatar просто возвращает текущий профиль (played/wins/online).
     if (req.method === "POST" && p === "/api/me") {
-      const { id, nickname } = await readBody(req);
+      const { id, nickname, avatar } = await readBody(req);
       if (!db.users[id]) return send(res, 404, { error: "unknown" });
-      db.users[id].nickname = cleanNick(nickname);
+      if (nickname !== undefined) db.users[id].nickname = cleanNick(nickname);
+      if (typeof avatar === "string") db.users[id].avatar = avatar.slice(0, 8);
+      save();
+      return send(res, 200, pub(id));
+    }
+
+    // POST /api/stats {id, result} -> профиль  (result: "win" | "loss")
+    if (req.method === "POST" && p === "/api/stats") {
+      const { id, result } = await readBody(req);
+      const u = db.users[id];
+      if (!u) return send(res, 404, { error: "unknown" });
+      u.played = (u.played || 0) + 1;
+      if (result === "win") u.wins = (u.wins || 0) + 1;
       save();
       return send(res, 200, pub(id));
     }

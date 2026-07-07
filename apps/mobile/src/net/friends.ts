@@ -7,8 +7,8 @@
 const API = (process.env.EXPO_PUBLIC_FRIENDS_API as string) || "https://pokerface-lk.duckdns.org/api";
 const KEY = "pokerface.friend";
 
-export interface Identity { id: string; code: string; nickname: string }
-export interface Friend { id: string; code: string; nickname: string; online?: boolean }
+export interface Identity { id: string; code: string; nickname: string; avatar?: string }
+export interface Friend { id: string; code: string; nickname: string; online?: boolean; avatar?: string; played?: number; wins?: number }
 export interface FriendsData { friends: Friend[]; incoming: Friend[]; outgoing: Friend[] }
 export interface Invite { from: string; nickname: string; room: string; lobby: string }
 
@@ -53,7 +53,7 @@ export async function ensureRegistered(nickname: string): Promise<Identity> {
   if (cur?.id) {
     try {
       const me = await post("/me", { id: cur.id, nickname });
-      const id = { id: me.id, code: me.code, nickname: me.nickname };
+      const id = { id: me.id, code: me.code, nickname: me.nickname, avatar: me.avatar };
       store(id);
       return id;
     } catch (e: any) {
@@ -62,9 +62,33 @@ export async function ensureRegistered(nickname: string): Promise<Identity> {
     }
   }
   const r = await post("/register", { nickname });
-  const id = { id: r.id, code: r.code, nickname: r.nickname };
+  const id = { id: r.id, code: r.code, nickname: r.nickname, avatar: r.avatar };
   store(id);
   return id;
+}
+
+// Мой профиль со свежими статами (played/wins/avatar/online). {id} без ника
+// не меняет ник — просто читает.
+export async function getMyProfile(): Promise<Friend | null> {
+  const me = load();
+  if (!me) return null;
+  try { return await post("/me", { id: me.id }); } catch { return null; }
+}
+
+export async function setAvatar(avatar: string): Promise<void> {
+  const me = load();
+  if (!me) return;
+  try {
+    await post("/me", { id: me.id, avatar });
+    store({ ...me, avatar });
+  } catch {}
+}
+
+// Записать результат матча (для статистики профиля). Fire-and-forget.
+export async function reportMatch(win: boolean): Promise<void> {
+  const me = load();
+  if (!me) return;
+  try { await post("/stats", { id: me.id, result: win ? "win" : "loss" }); } catch {}
 }
 
 export type AddResult = "requested" | "friends" | "self" | "notfound" | "already";

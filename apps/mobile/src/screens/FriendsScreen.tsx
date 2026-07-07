@@ -4,8 +4,12 @@ import { colors } from "../theme";
 import { t, useLang } from "../i18n";
 import {
   ensureRegistered, listFriends, addFriend, respondRequest, removeFriend,
-  getIdentity, type FriendsData, type Friend, type AddResult,
+  getIdentity, getMyProfile, setAvatar, type FriendsData, type Friend, type AddResult,
 } from "../net/friends";
+
+const AVATARS = ["🦊", "🐼", "🐸", "🐵", "🦁", "🐯", "🐨", "🐷", "🐙", "🤡", "👻", "🤖", "😎", "🥳", "💀", "🔥"];
+const winRate = (f: { played?: number; wins?: number }) =>
+  f.played ? Math.round((100 * (f.wins || 0)) / f.played) : 0;
 
 export function FriendsScreen({ name, onBack }: { name: string; onBack: () => void }) {
   useLang();
@@ -17,14 +21,24 @@ export function FriendsScreen({ name, onBack }: { name: string; onBack: () => vo
   const [msg, setMsg] = useState<{ text: string; err?: boolean } | null>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [myProfile, setMyProfile] = useState<Friend | null>(null);
+  const [showAvatar, setShowAvatar] = useState(false);
   const mounted = useRef(true);
 
   const refresh = useCallback(async () => {
     try {
-      const d = await listFriends();
-      if (mounted.current) setData(d);
+      const [d, prof] = await Promise.all([listFriends(), getMyProfile()]);
+      if (!mounted.current) return;
+      setData(d);
+      if (prof) setMyProfile(prof);
     } catch {}
   }, []);
+
+  async function pickAvatar(a: string) {
+    setShowAvatar(false);
+    setMyProfile((p) => (p ? { ...p, avatar: a } : p));
+    await setAvatar(a);
+  }
 
   // регистрация + первичная загрузка + опрос
   useEffect(() => {
@@ -91,6 +105,15 @@ export function FriendsScreen({ name, onBack }: { name: string; onBack: () => vo
     try { await removeFriend(f.id); await refresh(); } catch { flash(t("friends.error"), true); }
   }
 
+  // Топ друзей (я + друзья), только сыгравшие ≥1 матч, по победам.
+  const leaderboard = [
+    { id: "__me", me: true, nickname: name.trim() || t("common.you"), avatar: myProfile?.avatar, played: myProfile?.played, wins: myProfile?.wins },
+    ...data.friends.map((f) => ({ id: f.id, me: false, nickname: f.nickname || f.code, avatar: f.avatar, played: f.played, wins: f.wins })),
+  ]
+    .filter((p) => (p.played ?? 0) > 0)
+    .sort((a, b) => (b.wins ?? 0) - (a.wins ?? 0))
+    .slice(0, 5);
+
   return (
     <View style={styles.wrap}>
       <View style={styles.header}>
@@ -105,11 +128,35 @@ export function FriendsScreen({ name, onBack }: { name: string; onBack: () => vo
         <View style={styles.center}><ActivityIndicator color={colors.accent} /></View>
       ) : (
         <ScrollView contentContainerStyle={styles.body}>
-          {/* Мой код */}
+          {/* Мой профиль */}
           <View style={styles.card}>
-            <Text style={styles.label}>{t("friends.myCode")}</Text>
+            <View style={styles.profileTop}>
+              <Pressable style={styles.avatarBox} onPress={() => setShowAvatar((v) => !v)}>
+                <Text style={styles.avatarEmoji}>{myProfile?.avatar || "🙂"}</Text>
+                <Text style={styles.avatarEdit}>✎</Text>
+              </Pressable>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.profileName} numberOfLines={1}>{name.trim() || "—"}</Text>
+                <Text style={styles.profileStats}>
+                  🏆 {myProfile?.wins ?? 0} · {t("friends.played", { n: myProfile?.played ?? 0 })}
+                  {(myProfile?.played ?? 0) > 0 ? ` · ${winRate(myProfile || {})}%` : ""}
+                </Text>
+              </View>
+            </View>
+            {showAvatar ? (
+              <View style={styles.avatarPicker}>
+                {AVATARS.map((a) => (
+                  <Pressable key={a} style={styles.avatarOpt} onPress={() => pickAvatar(a)}>
+                    <Text style={styles.avatarOptEmoji}>{a}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
             <View style={styles.codeRow}>
-              <Text style={styles.code}>{myCode || "—"}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>{t("friends.myCode")}</Text>
+                <Text style={styles.code}>{myCode || "—"}</Text>
+              </View>
               <Pressable style={({ pressed }) => [styles.copyBtn, pressed && styles.pressed]} onPress={copyCode} disabled={!myCode}>
                 <Text style={styles.copyText}>{copied ? t("friends.codeCopied") : t("friends.copyCode")}</Text>
               </Pressable>
@@ -159,14 +206,30 @@ export function FriendsScreen({ name, onBack }: { name: string; onBack: () => vo
             ) : data.friends.map((f) => (
               <View key={f.id} style={styles.row}>
                 <View style={[styles.fdot, f.online ? styles.fdotOn : styles.fdotOff]} />
+                <Text style={styles.rowAvatar}>{f.avatar || "🙂"}</Text>
                 <Text style={styles.rowName} numberOfLines={1}>{f.nickname || f.code}</Text>
-                <Text style={styles.rowCode}>{f.online ? t("friends.online") : f.code}</Text>
+                <Text style={styles.rowWins}>🏆 {f.wins ?? 0}</Text>
                 <Pressable style={({ pressed }) => [styles.smallBtn, pressed && styles.pressed]} onPress={() => onRemove(f)}>
                   <Text style={styles.rejectText}>{t("friends.remove")}</Text>
                 </Pressable>
               </View>
             ))}
           </View>
+
+          {/* Топ друзей по победам */}
+          {leaderboard.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>🏆 {t("friends.leaderboard")}</Text>
+              {leaderboard.map((p, i) => (
+                <View key={p.id} style={[styles.row, p.me && styles.rowMe]}>
+                  <Text style={styles.rank}>{i + 1}</Text>
+                  <Text style={styles.rowAvatar}>{p.avatar || "🙂"}</Text>
+                  <Text style={styles.rowName} numberOfLines={1}>{p.nickname}{p.me ? t("lobby.youSuffix") : ""}</Text>
+                  <Text style={styles.rowWins}>🏆 {p.wins ?? 0}</Text>
+                </View>
+              ))}
+            </View>
+          )}
 
           {/* Отправленные */}
           {data.outgoing.length > 0 && (
@@ -217,6 +280,19 @@ const styles = StyleSheet.create({
   fdot: { width: 9, height: 9, borderRadius: 999 },
   fdotOn: { backgroundColor: colors.green },
   fdotOff: { backgroundColor: colors.border },
+  profileTop: { flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 12 },
+  avatarBox: { width: 56, height: 56, borderRadius: 999, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
+  avatarEmoji: { fontSize: 30 },
+  avatarEdit: { position: "absolute", right: -2, bottom: -2, fontSize: 11, color: colors.muted, backgroundColor: colors.panel, borderRadius: 999, paddingHorizontal: 3, overflow: "hidden" },
+  profileName: { color: colors.text, fontSize: 20, fontWeight: "800" },
+  profileStats: { color: colors.muted, fontSize: 14, marginTop: 3, fontWeight: "600" },
+  avatarPicker: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 },
+  avatarOpt: { width: 42, height: 42, borderRadius: 12, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
+  avatarOptEmoji: { fontSize: 22 },
+  rowAvatar: { fontSize: 20 },
+  rowWins: { color: colors.accent, fontSize: 14, fontWeight: "800" },
+  rowMe: { borderColor: colors.accent },
+  rank: { color: colors.muted, fontSize: 14, fontWeight: "800", width: 18, textAlign: "center" },
   smallBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingVertical: 6, paddingHorizontal: 12 },
   acceptBtn: { backgroundColor: colors.accent, borderColor: colors.accent },
   acceptText: { color: colors.onAccent, fontSize: 13, fontWeight: "800" },
