@@ -20,6 +20,7 @@ npm install                 # один раз из корня
 npm run server              # Colyseus :2567 (+ /monitor)
 npm run app                 # Expo Web :8081
 npm run bots                # боты для теста матча без камер
+npm test                    # юнит-тесты игровой логики (node:test + tsx, ноль доп. зависимостей)
 ```
 Прод-сборка: `npm run build:web` → кладёт web в `server/game/public`, сервер его раздаёт.
 

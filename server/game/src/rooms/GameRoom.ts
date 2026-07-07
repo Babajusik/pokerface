@@ -5,6 +5,10 @@ import {
   pickJoke, HostLevel, JokeCtx,
   ITEMS, ItemId, ITEM_COOLDOWN_MS, randomMeme, randomSticker,
 } from "@pokerface/shared";
+import {
+  isContestant as isContestantOf, cardColor, isEliminated,
+  aliveContestants, canStart, pushRateWindow, hidingAction,
+} from "../logic";
 
 // Авторитарная игровая комната. Клиент шлёт только "я улыбнулся" —
 // карточки, вылеты и победителя решает сервер (см. ARCHITECTURE.md §1).
@@ -146,18 +150,16 @@ export class GameRoom extends Room<GameState> {
 
   // Является ли игрок участником (в режиме судьи судья — не участник).
   private isContestant(p: Player): boolean {
-    return this.state.mode !== GameMode.Judge || p.id !== this.state.judgeId;
+    return isContestantOf(this.state.mode, this.state.judgeId, p.id);
   }
 
   // Скользящее окно: true = клиент превысил лимит сообщений, игнорируем.
   private rateLimited(client: Client): boolean {
-    const now = Date.now();
-    const arr = (this.msgRate.get(client.sessionId) || []).filter(
-      (t) => now - t < MSG_RATE_WINDOW_MS
+    const { times, limited } = pushRateWindow(
+      this.msgRate.get(client.sessionId) || [], Date.now(), MSG_RATE_WINDOW_MS, MSG_RATE_MAX
     );
-    arr.push(now);
-    this.msgRate.set(client.sessionId, arr);
-    return arr.length > MSG_RATE_MAX;
+    this.msgRate.set(client.sessionId, times);
+    return limited;
   }
 
   onJoin(client: Client, options: { name?: string }) {
@@ -250,16 +252,8 @@ export class GameRoom extends Room<GameState> {
   private tryStart(client: Client) {
     if (client.sessionId !== this.state.hostId) return; // только host
     if (this.state.phase !== Phase.Lobby) return;
-    // Старт только когда у всех подключены камера и микрофон.
-    if (![...this.state.players.values()].every((p) => p.mediaReady)) return;
-    if (this.state.mode === GameMode.Judge) {
-      // Нужен назначенный судья + минимум участников (не считая судью).
-      if (!this.state.judgeId || !this.state.players.has(this.state.judgeId)) return;
-      const contestants = [...this.state.players.values()].filter((p) => p.id !== this.state.judgeId).length;
-      if (contestants < GAME_CONFIG.minPlayersToStart) return;
-    } else {
-      if (this.state.players.size < GAME_CONFIG.minPlayersToStart) return;
-    }
+    // Гейт старта (камера+мик у всех, хватает участников, судья в режиме judge).
+    if (!canStart([...this.state.players.values()], this.state.mode, this.state.judgeId)) return;
 
     this.setPhase(Phase.Countdown);
     this.clock.setTimeout(() => this.beginRound(), GAME_CONFIG.countdownMs);
@@ -345,16 +339,16 @@ export class GameRoom extends Room<GameState> {
     const now = Date.now();
     p.lastCardAt = now;
     p.cards += 1;
-    const color = p.cards >= GAME_CONFIG.maxCards ? "red" : "yellow";
+    const color = cardColor(p.cards);
     this.broadcast(ServerMsg.CardIssued, { playerId: p.id, cards: p.cards, color });
     console.log(`[room ${this.roomId}] ${p.name}: ${color} (${p.cards}/${GAME_CONFIG.maxCards})`);
 
-    if (p.cards >= GAME_CONFIG.maxCards) {
+    if (isEliminated(p.cards)) {
       p.eliminated = true;
       p.survivedMs = now - this.startedAt;
       this.broadcast(ServerMsg.PlayerEliminated, { playerId: p.id });
       this.taunt("out", p.name);
-      const alive = [...this.state.players.values()].filter((x) => this.isContestant(x) && !x.eliminated);
+      const alive = aliveContestants([...this.state.players.values()], this.state.mode, this.state.judgeId);
       if (alive.length === 2) this.taunt("duel");
       this.checkWinner();
     } else {
@@ -369,13 +363,13 @@ export class GameRoom extends Room<GameState> {
     const now = Date.now();
     for (const p of this.state.players.values()) {
       if (p.eliminated || p.faceVisible || !p.faceLostAt) continue;
-      const hidden = now - p.faceLostAt;
-      if (hidden >= HIDE_PENALTY_MS) {
+      const action = hidingAction(now - p.faceLostAt, HIDE_WARN_MS, HIDE_PENALTY_MS, p.hidingWarn);
+      if (action === "penalty") {
         p.hidingWarn = false;
         p.faceLostAt = now; // сброс грейса до следующего штрафа
         console.log(`[room ${this.roomId}] ${p.name}: штраф за скрытое лицо`);
         this.addCard(p);
-      } else if (hidden >= HIDE_WARN_MS && !p.hidingWarn) {
+      } else if (action === "warn") {
         p.hidingWarn = true;
       }
     }
@@ -383,7 +377,7 @@ export class GameRoom extends Room<GameState> {
 
   private checkWinner() {
     if (this.state.phase !== Phase.Playing) return;
-    const alive = [...this.state.players.values()].filter((p) => this.isContestant(p) && !p.eliminated);
+    const alive = aliveContestants([...this.state.players.values()], this.state.mode, this.state.judgeId);
     if (alive.length <= 1) {
       this.state.winnerId = alive[0]?.id || "";
       this.setPhase(Phase.GameOver);
