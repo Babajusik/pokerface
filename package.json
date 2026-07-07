@@ -15,6 +15,6 @@
     "build:web": "npm run export --workspace=@pokerface/mobile",
     "build": "npm run build:web",
     "start": "npm run start --workspace=@pokerface/game-server",
-    "test": "npm run test --workspaces --if-present"
+    "test": "npm run test --workspaces --if-present && node --test \"deploy/**/*.test.js\""
   }
 }

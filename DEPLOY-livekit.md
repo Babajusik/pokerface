@@ -144,8 +144,10 @@ GIF-поиск работал из РФ без VPN и ключ GIPHY не све
 (id + короткий «код друга»), заявки и список друзей. Клиент ходит на `/api/*`
 через Caddy (работает из РФ без VPN, игровой сервер Render не участвует).
 
-- **`friends-server.js`** (версия в репо: `deploy/friends-server.js`) — Node http
-  без зависимостей, порт `8791`, хранилище — JSON `/data/friends.json`. Ручки (CORS `*`):
+- **`friends-server.js`** + **`friends-store.js`** (в репо: `deploy/`) — Node http
+  без зависимостей, порт `8791`, хранилище — JSON `/data/friends.json`. Логика вынесена
+  в `friends-store.js` (покрыта тестами `npm test`), server.js — тонкая HTTP-обёртка.
+  Оба файла монтируются в контейнер. Ручки (CORS `*`):
   - `POST /api/register {nickname}` → `{id, code, nickname}` (создаёт игрока).
   - `POST /api/me {id, nickname?, avatar?}` → профиль (played/wins/avatar/online); без ника/аватара просто читает. 404 если id неизвестен.
   - `POST /api/stats {id, result}` → инкремент played (+wins если result="win").
@@ -158,8 +160,8 @@ GIF-поиск работал из РФ без VPN и ключ GIPHY не све
   - `GET  /api/invites?id=` → мои входящие приглашения.
   - `POST /api/invite/clear {id, from}` → сбросить приглашение.
 - **docker-compose** — сервис `friendsproxy` (`node:20-alpine`, `network_mode: host`,
-  env `PORT=8791`/`DATA_FILE=/data/friends.json`, тома `./friends-server.js:/app/server.js`
-  и `./friends-data:/data`).
+  env `PORT=8791`/`DATA_FILE=/data/friends.json`, тома `./friends-server.js:/app/server.js`,
+  `./friends-store.js:/app/friends-store.js` и `./friends-data:/data`).
 - **Caddyfile** — matcher `@friends path /api*` → `handle → localhost:8791` (перед `@backend`).
 - Клиент: `apps/mobile/src/net/friends.ts` (базу переопределяет env `EXPO_PUBLIC_FRIENDS_API`).
 - Порт 8791 наружу открывать НЕ нужно (только Caddy на localhost).
