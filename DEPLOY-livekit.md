@@ -147,7 +147,8 @@ GIF-поиск работал из РФ без VPN и ключ GIPHY не све
 - **`friends-server.js`** (версия в репо: `deploy/friends-server.js`) — Node http
   без зависимостей, порт `8791`, хранилище — JSON `/data/friends.json`. Ручки (CORS `*`):
   - `POST /api/register {nickname}` → `{id, code, nickname}` (создаёт игрока).
-  - `POST /api/me {id, nickname}` → синхронизация ника (404 если id неизвестен).
+  - `POST /api/me {id, nickname?, avatar?}` → профиль (played/wins/avatar/online); без ника/аватара просто читает. 404 если id неизвестен.
+  - `POST /api/stats {id, result}` → инкремент played (+wins если result="win").
   - `POST /api/friends/add {id, code}` → `{status}` (requested/friends/self/notfound/already).
   - `GET  /api/friends?id=` → `{friends, incoming, outgoing}`.
   - `POST /api/friends/respond {id, from, accept}` → приём/отклонение заявки.
