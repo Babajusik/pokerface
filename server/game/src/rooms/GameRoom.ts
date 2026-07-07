@@ -162,10 +162,11 @@ export class GameRoom extends Room<GameState> {
     return limited;
   }
 
-  onJoin(client: Client, options: { name?: string }) {
+  onJoin(client: Client, options: { name?: string; avatar?: string }) {
     const p = new Player();
     p.id = client.sessionId;
     p.name = options?.name || `Player-${client.sessionId.slice(0, 4)}`;
+    p.avatar = String(options?.avatar || "").slice(0, 8);
     this.state.players.set(client.sessionId, p);
     if (!this.state.hostId) this.state.hostId = client.sessionId;
     console.log(`[room ${this.roomId}] +${p.name} (${this.state.players.size} в комнате)`);

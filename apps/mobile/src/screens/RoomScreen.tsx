@@ -212,6 +212,7 @@ export function RoomScreen({
                     onPress={() => onSetJudge(isJudge ? "" : p.id)}
                   >
                     <Text style={styles.name} numberOfLines={1}>
+                      {p.avatar ? p.avatar + " " : ""}
                       {isJudge ? "👨‍⚖️ " : p.id === snapshot.hostId ? "👑 " : ""}
                       {p.name}
                       {p.id === mySessionId ? t("lobby.youSuffix") : ""}

@@ -517,6 +517,7 @@ export function LiveKitVideo({
                 )}
               </View>
               <Text style={styles.name} numberOfLines={1}>
+                {p.avatar ? p.avatar + " " : ""}
                 {judgeMode && p.id === judgeId ? "👨‍⚖️ " : p.id === hostId ? "👑 " : ""}
                 {isMe ? t("common.you") : p.name}
                 {p.ready && !p.eliminated ? " ✓" : ""}

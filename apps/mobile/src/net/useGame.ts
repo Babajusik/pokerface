@@ -2,7 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Client, Room } from "colyseus.js";
 import { ClientMsg, ServerMsg, Phase, HostLevel, GameMode } from "@pokerface/shared";
 import { SERVER_ENDPOINT, TOKEN_BASE } from "./config";
+import { getIdentity } from "./friends";
 import { t } from "../i18n";
+
+// Аватар игрока из friends-личности (localStorage) — тащим в лобби/игру.
+const myAvatar = () => getIdentity()?.avatar || "";
 
 export interface CreateOpts {
   lobbyName: string;
@@ -15,6 +19,7 @@ export interface CreateOpts {
 export interface PlayerView {
   id: string;
   name: string;
+  avatar: string;
   cards: number;
   eliminated: boolean;
   faceVisible: boolean;
@@ -92,6 +97,7 @@ export function useGame() {
       players.push({
         id: p.id,
         name: p.name,
+        avatar: p.avatar ?? "",
         cards: p.cards,
         eliminated: p.eliminated,
         faceVisible: p.faceVisible,
@@ -208,6 +214,7 @@ export function useGame() {
       run(() =>
         getClient().create("game", {
           name,
+          avatar: myAvatar(),
           lobbyName: opts.lobbyName,
           isPrivate: opts.isPrivate,
           maxPlayers: opts.maxPlayers,
@@ -220,7 +227,7 @@ export function useGame() {
 
   const joinById = useCallback(
     (roomId: string, name: string) =>
-      run(() => getClient().joinById(roomId, { name })),
+      run(() => getClient().joinById(roomId, { name, avatar: myAvatar() })),
     [run, getClient]
   );
 
@@ -237,11 +244,11 @@ export function useGame() {
           );
           if (open.length) {
             const pick = open[Math.floor(Math.random() * open.length)];
-            return await client.joinById(pick.roomId, { name });
+            return await client.joinById(pick.roomId, { name, avatar: myAvatar() });
           }
         } catch {}
         return await client.create("game", {
-          name, lobbyName: `Игра ${name}`, isPrivate: false, maxPlayers: 8, hostLevel: "normal",
+          name, avatar: myAvatar(), lobbyName: `Игра ${name}`, isPrivate: false, maxPlayers: 8, hostLevel: "normal",
         });
       }),
     [run, getClient]
@@ -253,7 +260,7 @@ export function useGame() {
         const res = await fetch(`${TOKEN_BASE}/rooms/by-code?code=${encodeURIComponent(code)}`);
         if (!res.ok) throw new Error(t("err.codeNotFound"));
         const { roomId } = await res.json();
-        return getClient().joinById(roomId, { name });
+        return getClient().joinById(roomId, { name, avatar: myAvatar() });
       }),
     [run, getClient]
   );

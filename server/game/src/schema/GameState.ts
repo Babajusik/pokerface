@@ -5,6 +5,7 @@ import { Schema, MapSchema, type } from "@colyseus/schema";
 export class Player extends Schema {
   @type("string") id = "";
   @type("string") name = "";
+  @type("string") avatar = "";           // эмодзи-аватар из friends-личности (может быть пустым)
   @type("uint8") cards = 0;              // 0 = чисто, 1 = жёлтая, 2 = красная
   @type("boolean") eliminated = false;
   @type("boolean") faceVisible = true;
