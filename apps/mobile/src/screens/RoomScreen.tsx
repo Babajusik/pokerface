@@ -8,6 +8,7 @@ import { speak, stopSpeak } from "../speak";
 import { recordMatch } from "../stats";
 import { ITEMS, ITEM_COOLDOWN_MS } from "@pokerface/shared";
 import type { GameSnapshot } from "../net/useGame";
+import { listFriends, sendInvite, getIdentity, type Friend } from "../net/friends";
 import { t, useLang } from "../i18n";
 
 // Единый экран комнаты: лобби + игра в одном компоненте, чтобы LiveKitVideo
@@ -145,6 +146,24 @@ export function RoomScreen({
     setCharges((c) => ({ ...c, [itemId]: c[itemId] - 1 }));
   }
 
+  // ── Позвать друга в лобби ──
+  const canInviteFriends = inLobbyMode && !counting && !!getIdentity();
+  const [showInvite, setShowInvite] = useState(false);
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [invitedIds, setInvitedIds] = useState<string[]>([]);
+  useEffect(() => {
+    if (!showInvite) return;
+    let stop = false;
+    listFriends().then((d) => { if (!stop) setFriends(d.friends); }).catch(() => {});
+    return () => { stop = true; };
+  }, [showInvite]);
+  async function inviteFriend(f: Friend) {
+    try {
+      await sendInvite(f.id, roomId, snapshot.lobbyName || "");
+      setInvitedIds((s) => (s.includes(f.id) ? s : [...s, f.id]));
+    } catch {}
+  }
+
   // ── Эффект «прилетевшего» предмета ──
   const [fx, setFx] = useState(false);
   useEffect(() => {
@@ -269,6 +288,39 @@ export function RoomScreen({
                 <Text style={styles.hint}>{t("lobby.needPlayers")}</Text>
               ) : isHost && !allMedia ? (
                 <Text style={styles.hint}>{t("lobby.waitMedia")}</Text>
+              ) : null}
+              {canInviteFriends ? (
+                <>
+                  <Pressable style={({ pressed }) => [styles.inviteFriendsBtn, pressed && styles.pressedBtn]} onPress={() => setShowInvite((v) => !v)}>
+                    <Text style={styles.inviteFriendsText}>{showInvite ? t("friends.inviteClose") : t("friends.invite")}</Text>
+                  </Pressable>
+                  {showInvite ? (
+                    <View style={styles.invitePanel}>
+                      {friends.length === 0 ? (
+                        <Text style={styles.hint}>{t("friends.noFriendsInvite")}</Text>
+                      ) : (
+                        [...friends].sort((a, b) => Number(!!b.online) - Number(!!a.online)).map((f) => {
+                          const invited = invitedIds.includes(f.id);
+                          return (
+                            <View key={f.id} style={styles.inviteRow}>
+                              <View style={[styles.dot, f.online ? styles.dotOn : styles.dotOff]} />
+                              <Text style={styles.inviteName} numberOfLines={1}>{f.nickname || f.code}</Text>
+                              <Pressable
+                                style={({ pressed }) => [styles.inviteSendBtn, invited && styles.inviteSentBtn, pressed && styles.pressedBtn]}
+                                disabled={invited}
+                                onPress={() => inviteFriend(f)}
+                              >
+                                <Text style={invited ? styles.inviteSentText : styles.inviteSendText}>
+                                  {invited ? t("friends.invited") : t("friends.inviteSend")}
+                                </Text>
+                              </Pressable>
+                            </View>
+                          );
+                        })
+                      )}
+                    </View>
+                  ) : null}
+                </>
               ) : null}
             </>
           )
@@ -446,4 +498,18 @@ const styles = StyleSheet.create({
   faceWarnText: { backgroundColor: colors.red, color: "#fff", fontWeight: "800", fontSize: 15, textAlign: "center", paddingVertical: 12, paddingHorizontal: 18, borderRadius: 14, overflow: "hidden" },
   rematchBtn: { marginTop: 16, backgroundColor: colors.accent, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 14 },
   rematchText: { color: "#10210a", fontSize: 16, fontWeight: "800" },
+  // позвать друга
+  inviteFriendsBtn: { marginTop: 10, borderWidth: 1, borderColor: colors.border, borderStyle: "dashed", borderRadius: 12, paddingVertical: 12, alignItems: "center" },
+  inviteFriendsText: { color: colors.accent, fontSize: 14, fontWeight: "700" },
+  invitePanel: { marginTop: 8, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 8, gap: 6 },
+  inviteRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 6, paddingHorizontal: 6 },
+  dot: { width: 9, height: 9, borderRadius: 999 },
+  dotOn: { backgroundColor: colors.green },
+  dotOff: { backgroundColor: colors.border },
+  inviteName: { color: colors.text, fontSize: 15, fontWeight: "600", flex: 1 },
+  inviteSendBtn: { backgroundColor: colors.accent, borderRadius: 10, paddingVertical: 6, paddingHorizontal: 14 },
+  inviteSentBtn: { backgroundColor: "transparent", borderWidth: 1, borderColor: colors.green },
+  inviteSendText: { color: colors.onAccent, fontSize: 13, fontWeight: "800" },
+  inviteSentText: { color: colors.green, fontSize: 13, fontWeight: "800" },
+  pressedBtn: { transform: [{ scale: 0.97 }] },
 });

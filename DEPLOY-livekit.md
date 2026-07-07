@@ -152,6 +152,10 @@ GIF-поиск работал из РФ без VPN и ключ GIPHY не све
   - `GET  /api/friends?id=` → `{friends, incoming, outgoing}`.
   - `POST /api/friends/respond {id, from, accept}` → приём/отклонение заявки.
   - `POST /api/friends/remove {id, friend}` → удалить из друзей.
+  - `POST /api/ping {id}` → онлайн-статус (хранится в памяти, окно 45с).
+  - `POST /api/invite {from, to, room, lobby}` → позвать друга в лобби (в памяти, TTL 2 мин, только между друзьями).
+  - `GET  /api/invites?id=` → мои входящие приглашения.
+  - `POST /api/invite/clear {id, from}` → сбросить приглашение.
 - **docker-compose** — сервис `friendsproxy` (`node:20-alpine`, `network_mode: host`,
   env `PORT=8791`/`DATA_FILE=/data/friends.json`, тома `./friends-server.js:/app/server.js`
   и `./friends-data:/data`).

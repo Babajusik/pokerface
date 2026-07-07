@@ -5,6 +5,7 @@ import { colors } from "./src/theme";
 import { useGame } from "./src/net/useGame";
 import { t, useLang } from "./src/i18n";
 import { getSettings, saveSettings } from "./src/settings";
+import { ping } from "./src/net/friends";
 import { MainMenuScreen } from "./src/screens/MainMenuScreen";
 import { CreateGameScreen } from "./src/screens/CreateGameScreen";
 import { LobbyListScreen } from "./src/screens/LobbyListScreen";
@@ -29,6 +30,13 @@ export default function App() {
   useEffect(() => {
     if (status === "connected") setRoute("menu");
   }, [status]);
+
+  // Онлайн-пинг, пока приложение открыто (если игрок зарегистрирован в друзьях).
+  useEffect(() => {
+    ping();
+    const iv = setInterval(ping, 20000);
+    return () => clearInterval(iv);
+  }, []);
 
   function setNamePersist(n: string) {
     setName(n);
@@ -104,6 +112,7 @@ export default function App() {
         onQuickPlay={() => game.quickPlay(name)}
         onCreate={() => { game.reset(); setRoute("create"); }}
         onFind={() => { game.reset(); setRoute("list"); }}
+        onJoinRoom={(room) => game.joinById(room, name)}
         onFriends={() => setRoute("friends")}
         onSettings={() => setRoute("settings")}
       />

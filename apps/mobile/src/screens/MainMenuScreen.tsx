@@ -3,6 +3,7 @@ import { View, Text, TextInput, Pressable, StyleSheet } from "react-native";
 import { colors } from "../theme";
 import { getStats } from "../stats";
 import { TOKEN_BASE } from "../net/config";
+import { listInvites, clearInvite, getIdentity, type Invite } from "../net/friends";
 import { t, useLang } from "../i18n";
 
 export function MainMenuScreen({
@@ -12,6 +13,7 @@ export function MainMenuScreen({
   onQuickPlay,
   onCreate,
   onFind,
+  onJoinRoom,
   onFriends,
   onSettings,
 }: {
@@ -21,6 +23,7 @@ export function MainMenuScreen({
   onQuickPlay: () => void;
   onCreate: () => void;
   onFind: () => void;
+  onJoinRoom: (room: string) => void;
   onFriends: () => void;
   onSettings: () => void;
 }) {
@@ -29,6 +32,30 @@ export function MainMenuScreen({
   const stats = getStats();
   const [online, setOnline] = useState<number | null>(null);
   const [invited, setInvited] = useState(false);
+  const [invites, setInvites] = useState<Invite[]>([]);
+
+  // Входящие приглашения в лобби (если игрок зарегистрирован в друзьях).
+  useEffect(() => {
+    if (!getIdentity()) return;
+    let stop = false;
+    async function load() {
+      const inv = await listInvites();
+      if (!stop) setInvites(inv);
+    }
+    load();
+    const iv = setInterval(load, 5000);
+    return () => { stop = true; clearInterval(iv); };
+  }, []);
+
+  function acceptInvite(inv: Invite) {
+    clearInvite(inv.from);
+    setInvites((list) => list.filter((i) => i.from !== inv.from));
+    onJoinRoom(inv.room);
+  }
+  function dismissInvite(inv: Invite) {
+    clearInvite(inv.from);
+    setInvites((list) => list.filter((i) => i.from !== inv.from));
+  }
 
   // Онлайн (соц-доказательство)
   useEffect(() => {
@@ -57,6 +84,23 @@ export function MainMenuScreen({
 
   return (
     <View style={styles.wrap}>
+      {/* Приглашения в лобби от друзей */}
+      {invites.map((inv) => (
+        <View key={inv.from} style={styles.inviteBanner}>
+          <Text style={styles.inviteBannerText} numberOfLines={2}>
+            🎮 {t("friends.inviteBanner", { name: inv.nickname || t("common.you"), lobby: inv.lobby || t("lobby.defaultName") })}
+          </Text>
+          <View style={styles.inviteBannerBtns}>
+            <Pressable style={({ pressed }) => [styles.joinBtn, pressed && styles.pressed]} onPress={() => acceptInvite(inv)}>
+              <Text style={styles.joinText}>{t("friends.join")}</Text>
+            </Pressable>
+            <Pressable style={styles.dismissBtn} onPress={() => dismissInvite(inv)}>
+              <Text style={styles.dismissText}>✕</Text>
+            </Pressable>
+          </View>
+        </View>
+      ))}
+
       {/* retention: стрик + матчи + онлайн */}
       <View style={styles.stats}>
         {stats.streak > 0 && (
@@ -151,4 +195,11 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.45 },
   hint: { color: colors.muted, textAlign: "center", marginTop: 10, fontSize: 13 },
   err: { color: colors.red, textAlign: "center", marginTop: 10, fontSize: 13 },
+  inviteBanner: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "rgba(200,242,80,0.12)", borderWidth: 1, borderColor: colors.accent, borderRadius: 14, padding: 12, marginTop: 8, maxWidth: 480, width: "100%", alignSelf: "center" },
+  inviteBannerText: { color: colors.text, fontSize: 14, fontWeight: "700", flex: 1 },
+  inviteBannerBtns: { flexDirection: "row", alignItems: "center", gap: 8 },
+  joinBtn: { backgroundColor: colors.accent, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 16 },
+  joinText: { color: colors.onAccent, fontSize: 14, fontWeight: "800" },
+  dismissBtn: { paddingVertical: 6, paddingHorizontal: 8 },
+  dismissText: { color: colors.muted, fontSize: 16, fontWeight: "700" },
 });

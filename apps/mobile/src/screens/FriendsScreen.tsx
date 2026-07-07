@@ -158,8 +158,9 @@ export function FriendsScreen({ name, onBack }: { name: string; onBack: () => vo
               <Text style={styles.hint}>{t("friends.empty")}</Text>
             ) : data.friends.map((f) => (
               <View key={f.id} style={styles.row}>
+                <View style={[styles.fdot, f.online ? styles.fdotOn : styles.fdotOff]} />
                 <Text style={styles.rowName} numberOfLines={1}>{f.nickname || f.code}</Text>
-                <Text style={styles.rowCode}>{f.code}</Text>
+                <Text style={styles.rowCode}>{f.online ? t("friends.online") : f.code}</Text>
                 <Pressable style={({ pressed }) => [styles.smallBtn, pressed && styles.pressed]} onPress={() => onRemove(f)}>
                   <Text style={styles.rejectText}>{t("friends.remove")}</Text>
                 </Pressable>
@@ -213,6 +214,9 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12 },
   rowName: { color: colors.text, fontSize: 15, fontWeight: "700", flex: 1 },
   rowCode: { color: colors.muted, fontSize: 13, letterSpacing: 1 },
+  fdot: { width: 9, height: 9, borderRadius: 999 },
+  fdotOn: { backgroundColor: colors.green },
+  fdotOff: { backgroundColor: colors.border },
   smallBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingVertical: 6, paddingHorizontal: 12 },
   acceptBtn: { backgroundColor: colors.accent, borderColor: colors.accent },
   acceptText: { color: colors.onAccent, fontSize: 13, fontWeight: "800" },

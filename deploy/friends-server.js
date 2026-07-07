@@ -14,6 +14,8 @@ const PORT = parseInt(process.env.PORT || "8791", 10);
 const DATA_FILE = process.env.DATA_FILE || "/data/friends.json";
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // без 0/O/1/I
 const NICK_MAX = 24;
+const ONLINE_MS = 45000;    // «в сети», если пинг был за последние 45с
+const INVITE_TTL = 120000;  // приглашение живёт 2 минуты
 
 // --- хранилище -------------------------------------------------------------
 // users[id]   = { id, code, nickname, created }
@@ -22,6 +24,9 @@ const NICK_MAX = 24;
 // friends[`${a}|${b}`] = ts           (a<b — неориентированная дружба)
 let db = { users: {}, requests: {}, friends: {} };
 const codeIndex = {};
+// Эфемерное (в памяти, не пишем в JSON):
+const seen = {};    // seen[id] = ts последнего пинга (онлайн)
+const invites = {}; // invites[`${to}|${from}`] = { room, lobby, ts }
 
 function load() {
   try {
@@ -58,8 +63,10 @@ function genCode() {
 }
 function cleanNick(s) { return String(s || "").trim().slice(0, NICK_MAX); }
 function pairKey(a, b) { return a < b ? `${a}|${b}` : `${b}|${a}`; }
-function pub(id) { const u = db.users[id]; return u ? { id: u.id, code: u.code, nickname: u.nickname } : null; }
+function isOnline(id) { return !!seen[id] && Date.now() - seen[id] < ONLINE_MS; }
+function pub(id) { const u = db.users[id]; return u ? { id: u.id, code: u.code, nickname: u.nickname, online: isOnline(u.id) } : null; }
 function areFriends(a, b) { return !!db.friends[pairKey(a, b)]; }
+function pruneInvites() { const now = Date.now(); for (const k in invites) if (now - invites[k].ts > INVITE_TTL) delete invites[k]; }
 
 function friendsOf(id) {
   const out = [];
@@ -125,6 +132,13 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, pub(id));
     }
 
+    // POST /api/ping {id} -> {ok}  (онлайн-статус, в памяти)
+    if (req.method === "POST" && p === "/api/ping") {
+      const { id } = await readBody(req);
+      if (db.users[id]) seen[id] = Date.now();
+      return send(res, 200, { ok: true });
+    }
+
     // POST /api/friends/add {id, code} -> {status}
     if (req.method === "POST" && p === "/api/friends/add") {
       const { id, code } = await readBody(req);
@@ -173,6 +187,38 @@ const server = http.createServer(async (req, res) => {
       delete db.requests[`${id}|${friend}`];
       delete db.requests[`${friend}|${id}`];
       save();
+      return send(res, 200, { ok: true });
+    }
+
+    // POST /api/invite {from, to, room, lobby} -> {ok}  (позвать друга в лобби)
+    if (req.method === "POST" && p === "/api/invite") {
+      const { from, to, room, lobby } = await readBody(req);
+      if (!db.users[from] || !db.users[to]) return send(res, 404, { error: "unknown" });
+      if (!areFriends(from, to)) return send(res, 403, { error: "not friends" });
+      if (!room) return send(res, 400, { error: "no room" });
+      invites[`${to}|${from}`] = { room: String(room), lobby: cleanNick(lobby), ts: Date.now() };
+      return send(res, 200, { ok: true });
+    }
+
+    // GET /api/invites?id= -> {invites:[{from, nickname, room, lobby}]}
+    if (req.method === "GET" && p === "/api/invites") {
+      pruneInvites();
+      const id = url.searchParams.get("id");
+      const out = [];
+      if (id && db.users[id]) {
+        for (const k in invites) {
+          const [to, from] = k.split("|");
+          if (to !== id || !db.users[from]) continue;
+          out.push({ from, nickname: db.users[from].nickname, room: invites[k].room, lobby: invites[k].lobby });
+        }
+      }
+      return send(res, 200, { invites: out });
+    }
+
+    // POST /api/invite/clear {id, from} -> {ok}
+    if (req.method === "POST" && p === "/api/invite/clear") {
+      const { id, from } = await readBody(req);
+      delete invites[`${id}|${from}`];
       return send(res, 200, { ok: true });
     }
 

@@ -8,8 +8,9 @@ const API = (process.env.EXPO_PUBLIC_FRIENDS_API as string) || "https://pokerfac
 const KEY = "pokerface.friend";
 
 export interface Identity { id: string; code: string; nickname: string }
-export interface Friend { id: string; code: string; nickname: string }
+export interface Friend { id: string; code: string; nickname: string; online?: boolean }
 export interface FriendsData { friends: Friend[]; incoming: Friend[]; outgoing: Friend[] }
+export interface Invite { from: string; nickname: string; room: string; lobby: string }
 
 let cache: Identity | null = null;
 
@@ -98,4 +99,36 @@ export async function removeFriend(friendId: string): Promise<void> {
   const me = load();
   if (!me) return;
   await post("/friends/remove", { id: me.id, friend: friendId });
+}
+
+// Онлайн-пинг: держим статус «в сети», пока приложение открыто. Fire-and-forget.
+export async function ping(): Promise<void> {
+  const me = load();
+  if (!me) return;
+  try { await post("/ping", { id: me.id }); } catch {}
+}
+
+// Пригласить друга в текущее лобби (передаём roomId + название).
+export async function sendInvite(toId: string, room: string, lobby: string): Promise<void> {
+  const me = load();
+  if (!me) return;
+  await post("/invite", { from: me.id, to: toId, room, lobby });
+}
+
+// Мои входящие приглашения (эфемерные, живут ~2 мин).
+export async function listInvites(): Promise<Invite[]> {
+  const me = load();
+  if (!me) return [];
+  try {
+    const res = await fetch(`${API}/invites?id=${encodeURIComponent(me.id)}`);
+    if (!res.ok) return [];
+    const d = await res.json();
+    return d.invites || [];
+  } catch { return []; }
+}
+
+export async function clearInvite(fromId: string): Promise<void> {
+  const me = load();
+  if (!me) return;
+  try { await post("/invite/clear", { id: me.id, from: fromId }); } catch {}
 }
