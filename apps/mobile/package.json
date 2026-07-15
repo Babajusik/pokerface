@@ -24,7 +24,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "export": "expo export -p web --output-dir ../../server/game/public"
+    "export": "expo export -p web --output-dir ../../server/game/public && node scripts/pwa-inject.mjs"
   },
   "private": true
 }
