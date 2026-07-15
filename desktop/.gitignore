@@ -1,0 +1,4 @@
+# Rust build output (огромный) и генерируемое Tauri
+src-tauri/target/
+src-tauri/gen/
+node_modules/

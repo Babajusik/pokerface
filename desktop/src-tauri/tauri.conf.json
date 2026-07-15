@@ -1,0 +1,40 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "PokerFace",
+  "version": "0.1.0",
+  "identifier": "com.pokerface.game",
+  "build": {
+    "frontendDist": "https://pokerface-ge2s.onrender.com",
+    "devUrl": "https://pokerface-ge2s.onrender.com"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "PokerFace",
+        "width": 960,
+        "height": 720,
+        "minWidth": 360,
+        "minHeight": 560,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "android": {
+      "debugApplicationIdSuffix": ".debug"
+    }
+  }
+}
