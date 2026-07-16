@@ -11,6 +11,7 @@ type Dict = Record<string, string>;
 const ru: Dict = {
   // меню
   "app.subtitle": "Не улыбайся. Останься последним.",
+  "app.updateAfterExit": "🔄 Новая версия — обновится после выхода",
   "menu.namePlaceholder": "Твоё имя",
   "menu.quickPlay": "⚡ Быстрая игра",
   "menu.create": "➕ Создать",
@@ -179,6 +180,7 @@ const ru: Dict = {
 
 const en: Dict = {
   "app.subtitle": "Don't smile. Be the last one standing.",
+  "app.updateAfterExit": "🔄 New version — will update after you leave",
   "menu.namePlaceholder": "Your name",
   "menu.quickPlay": "⚡ Quick play",
   "menu.create": "➕ Create",

@@ -6,6 +6,7 @@ import { useGame } from "./src/net/useGame";
 import { t, useLang } from "./src/i18n";
 import { getSettings, saveSettings } from "./src/settings";
 import { ping } from "./src/net/friends";
+import { checkUpdate, applyUpdate, versionCheckEnabled } from "./src/version";
 import { MainMenuScreen } from "./src/screens/MainMenuScreen";
 import { CreateGameScreen } from "./src/screens/CreateGameScreen";
 import { LobbyListScreen } from "./src/screens/LobbyListScreen";
@@ -37,6 +38,33 @@ export default function App() {
     const iv = setInterval(ping, 20000);
     return () => clearInterval(iv);
   }, []);
+
+  // ── Актуальность версии ──
+  // Проверяем при старте, по возврату фокуса и раз в 5 минут.
+  const [update, setUpdate] = useState<{ version: string; canAutoApply: boolean } | null>(null);
+  useEffect(() => {
+    if (!versionCheckEnabled) return; // dev-сборка (metro) — не проверяем
+    let stopped = false;
+    const check = async () => {
+      const u = await checkUpdate();
+      if (u && !stopped) setUpdate(u);
+    };
+    check();
+    const iv = setInterval(check, 5 * 60 * 1000);
+    const onFocus = () => check();
+    if (typeof window !== "undefined") window.addEventListener("focus", onFocus);
+    return () => {
+      stopped = true;
+      clearInterval(iv);
+      if (typeof window !== "undefined") window.removeEventListener("focus", onFocus);
+    };
+  }, []);
+
+  // Обновляемся молча, когда безопасно (в меню). Из матча не выдёргиваем —
+  // применится сразу после выхода из комнаты.
+  useEffect(() => {
+    if (update?.canAutoApply && !inRoom) applyUpdate(update.version);
+  }, [update, inRoom]);
 
   function setNamePersist(n: string) {
     setName(n);
@@ -132,6 +160,12 @@ export default function App() {
           <Text style={styles.overlayText}>{t("app.connecting")}</Text>
         </View>
       )}
+      {/* В матче не выдёргиваем — только предупреждаем; обновится после выхода */}
+      {update && inRoom && (
+        <View style={styles.updateBanner} pointerEvents="none">
+          <Text style={styles.updateText}>{t("app.updateAfterExit")}</Text>
+        </View>
+      )}
       {status === "reconnecting" && (
         <View style={styles.overlay}>
           <ActivityIndicator color={colors.accent} size="large" />
@@ -149,4 +183,10 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(11,13,18,0.7)", alignItems: "center", justifyContent: "center", gap: 12,
   },
   overlayText: { color: colors.text, fontSize: 16, fontWeight: "600" },
+  updateBanner: { position: "absolute", bottom: 8, left: 12, right: 12, alignItems: "center" },
+  updateText: {
+    backgroundColor: colors.panel2 ?? colors.panel, color: colors.accent,
+    borderWidth: 1, borderColor: colors.accent, borderRadius: 999,
+    paddingVertical: 6, paddingHorizontal: 14, fontSize: 12, fontWeight: "700", overflow: "hidden",
+  },
 });
