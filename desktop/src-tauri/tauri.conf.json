@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "identifier": "com.pokerface.game",
   "build": {
-    "frontendDist": "https://pokerface-ge2s.onrender.com",
-    "devUrl": "https://pokerface-ge2s.onrender.com"
+    "frontendDist": "https://pokerface-app.duckdns.org",
+    "devUrl": "https://pokerface-app.duckdns.org"
   },
   "app": {
     "windows": [
