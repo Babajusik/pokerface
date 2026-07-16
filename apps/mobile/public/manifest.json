@@ -2,7 +2,7 @@
   "name": "PokerFace",
   "short_name": "PokerFace",
   "description": "Онлайн-игра «не улыбнись» на веб-камерах",
-  "start_url": "/",
+  "start_url": "/?app=1",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",

@@ -33,17 +33,43 @@ export function detectPlatform(): Platform {
   return "other";
 }
 
-/** Уже запущено как установленное приложение (PWA/обёртка)? */
-export function isStandalone(): boolean {
+const APP_FLAG = "pokerface.launchedAsApp";
+
+/**
+ * Запущено ли как установленное приложение (а не вкладка браузера).
+ * Проверяем НЕСКОЛЬКО независимых признаков — одного display-mode мало:
+ * его сообщают не все браузеры (например, Яндекс), а нативные обёртки
+ * (Tauri/Capacitor) вообще грузят сайт как обычную страницу.
+ */
+export function isInstalledApp(): boolean {
+  if (typeof window === "undefined") return false;
+  const w = window as any;
+
+  // 1. Нативные обёртки — инжектят свои глобалы
+  if (w.__TAURI__ || w.__TAURI_INTERNALS__) return true; // Windows (Tauri)
+  if (w.Capacitor) return true;                          // Android (Capacitor)
+
+  // 2. iOS «на экран Домой»
+  if ((navigator as any).standalone === true) return true;
+
+  // 3. Окно PWA: любой не-браузерный режим отображения
   try {
-    if (typeof window === "undefined") return false;
-    return (
-      window.matchMedia?.("(display-mode: standalone)").matches ||
-      (navigator as any).standalone === true
-    );
-  } catch {
-    return false;
-  }
+    const modes = ["standalone", "minimal-ui", "fullscreen", "window-controls-overlay"];
+    if (modes.some((m) => window.matchMedia?.(`(display-mode: ${m})`).matches)) return true;
+  } catch {}
+
+  // 4. Самый надёжный признак: манифест открывает start_url с меткой ?app=1.
+  //    Работает даже там, где display-mode врёт. Запоминаем на сессию, т.к.
+  //    метка есть только в стартовом URL.
+  try {
+    if (new URLSearchParams(location.search).get("app") === "1") {
+      sessionStorage.setItem(APP_FLAG, "1");
+      return true;
+    }
+    if (sessionStorage.getItem(APP_FLAG) === "1") return true;
+  } catch {}
+
+  return false;
 }
 
 // ── Нативный промпт установки (Chrome/Edge) ──

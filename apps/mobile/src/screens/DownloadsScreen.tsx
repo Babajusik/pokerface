@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { View, Text, Pressable, StyleSheet, ScrollView, Linking } from "react-native";
 import { colors } from "../theme";
 import { t, useLang } from "../i18n";
-import { DOWNLOADS, detectPlatform, isStandalone, useCanInstall, promptInstall } from "../install";
+import { DOWNLOADS, detectPlatform, isInstalledApp, useCanInstall, promptInstall } from "../install";
 
 // Страница «Скачать приложение»: установка в один клик там, где это возможно
 // (Chrome/Edge на Android и Windows), прямые ссылки на .exe/.apk и инструкция
@@ -11,7 +11,7 @@ export function DownloadsScreen({ onBack }: { onBack: () => void }) {
   useLang();
   const platform = detectPlatform();
   const canInstall = useCanInstall();
-  const installed = isStandalone();
+  const installed = isInstalledApp();
   const [busy, setBusy] = useState(false);
 
   const open = (url: string) => Linking.openURL(url).catch(() => {});

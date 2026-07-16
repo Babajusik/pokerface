@@ -4,7 +4,7 @@ import { colors } from "../theme";
 import { getStats } from "../stats";
 import { TOKEN_BASE } from "../net/config";
 import { listInvites, clearInvite, getIdentity, type Invite } from "../net/friends";
-import { isStandalone } from "../install";
+import { isInstalledApp } from "../install";
 import { t, useLang } from "../i18n";
 
 export function MainMenuScreen({
@@ -159,7 +159,7 @@ export function MainMenuScreen({
           </Pressable>
         </View>
         {/* Уже запущено как приложение — предлагать скачивание незачем */}
-        {!isStandalone() && (
+        {!isInstalledApp() && (
           <Pressable style={styles.ghost} onPress={onDownloads}>
             <Text style={styles.ghostText}>{t("menu.download")}</Text>
           </Pressable>
