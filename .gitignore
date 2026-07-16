@@ -12,3 +12,4 @@ pokerface-prototype.zip
 *.env
 graphify-out/
 .graphify/
+.pfweb-deploy.tgz
