@@ -26,7 +26,7 @@ export function CreateGameScreen({
   const [mode, setMode] = useState<GameMode>(GameMode.Classic);
 
   // Режимы: id, ключ подписи, доступен ли (ai/board — бета/скоро).
-  const modes: { id: GameMode; label: string; beta?: boolean }[] = [
+  const modes: { id: GameMode; label: string; beta?: boolean; soon?: boolean }[] = [
     { id: GameMode.Classic, label: t("mode.classic") },
     { id: GameMode.Judge, label: t("mode.judge") },
     { id: GameMode.Board, label: t("mode.board") },
@@ -53,12 +53,13 @@ export function CreateGameScreen({
             return (
               <Pressable
                 key={m.id}
-                style={[styles.modeBtn, on && styles.segOn, m.beta && styles.modeDim]}
-                disabled={!!m.beta}
+                style={[styles.modeBtn, on && styles.segOn, m.soon && styles.modeDim]}
+                disabled={!!m.soon}
                 onPress={() => setMode(m.id)}
               >
                 <Text style={[styles.segText, on && styles.segTextOn]}>{m.label}</Text>
-                {m.beta ? <Text style={styles.betaTag}>{t("mode.beta")}</Text> : null}
+                {m.soon ? <Text style={styles.betaTag}>{t("mode.beta")}</Text> : null}
+                {m.beta ? <Text style={styles.betaTag}>{t("mode.betaTag")}</Text> : null}
               </Pressable>
             );
           })}

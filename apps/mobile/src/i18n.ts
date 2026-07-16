@@ -101,6 +101,7 @@ const ru: Dict = {
   "mode.board": "Доска",
   "mode.quiz": "Викторина",
   "mode.beta": "скоро",
+  "mode.betaTag": "бета",
   // викторина
   "quiz.badge": "Викторина",
   "quiz.pick": "Выбери вариант — и не улыбайся",
@@ -287,6 +288,7 @@ const en: Dict = {
   "mode.board": "Board",
   "mode.quiz": "Quiz",
   "mode.beta": "soon",
+  "mode.betaTag": "beta",
   "quiz.badge": "Quiz",
   "quiz.pick": "Pick an option — and don't smile",
   "quiz.voted": "Vote counted. Keep a straight face.",

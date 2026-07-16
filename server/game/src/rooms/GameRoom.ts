@@ -10,6 +10,7 @@ import {
   isContestant as isContestantOf, cardColor, isEliminated,
   aliveContestants, canStart, pushRateWindow, hidingAction,
 } from "../logic";
+import { hasAiHost, generateTaunt } from "../services/aiHost";
 
 // Авторитарная игровая комната. Клиент шлёт только "я улыбнулся" —
 // карточки, вылеты и победителя решает сервер (см. ARCHITECTURE.md §1).
@@ -45,6 +46,7 @@ export class GameRoom extends Room<GameState> {
   private quizRevealTimer?: any;
   private quiz?: { qid: string; text: string; options: QuizOption[]; votes: Map<string, string> };
   private quizUsed: string[] = [];
+  private recentTaunts: string[] = []; // последние реплики ИИ — чтобы не повторялся
   private itemState = new Map<string, { lastAt: number; uses: Record<string, number> }>();
   private msgRate = new Map<string, number[]>();
 
@@ -288,11 +290,40 @@ export class GameRoom extends Room<GameState> {
     });
   }
 
-  // ── ИИ-ведущий: выбираем готовую реплику (0 токенов) и шлём всем ──
+  // ── Ведущий ──
+  // Режим ai + есть ключ → генерим реплику через LLM (асинхронно, с фолбэком).
+  // Иначе — готовый банк шуток (0 токенов), как раньше.
   private taunt(ctx: JokeCtx, name = "") {
+    if (this.state.mode === GameMode.AI && hasAiHost() && this.hostLevel !== "off") {
+      void this.aiTaunt(ctx, name); // не блокируем игру ожиданием сети
+      return;
+    }
+    this.bankTaunt(ctx, name);
+  }
+
+  // Готовый банк — мгновенно и бесплатно.
+  private bankTaunt(ctx: JokeCtx, name = "") {
     const tmpl = pickJoke(ctx, this.hostLevel);
     if (!tmpl) return;
-    const text = tmpl.replace(/\{name\}/g, name || this.randomAliveName());
+    this.say(tmpl.replace(/\{name\}/g, name || this.randomAliveName()));
+  }
+
+  // Реплика от LLM. Любой сбой/таймаут/отсутствие ключа → банк шуток.
+  private async aiTaunt(ctx: JokeCtx, name = "") {
+    const target = name || this.randomAliveName();
+    const alive = aliveContestants([...this.state.players.values()], this.state.mode, this.state.judgeId)
+      .map((p) => p.name);
+    const text = await generateTaunt({
+      ctx, level: this.hostLevel, targetName: target, alive, recent: this.recentTaunts,
+    });
+    if (!text) { this.bankTaunt(ctx, name); return; }
+    if (this.state.phase !== Phase.Playing) return; // раунд успел кончиться, реплика неактуальна
+    this.recentTaunts.push(text);
+    if (this.recentTaunts.length > 6) this.recentTaunts.shift();
+    this.say(text);
+  }
+
+  private say(text: string) {
     this.state.tauntText = text;
     this.broadcast(ServerMsg.Taunt, { text });
   }
