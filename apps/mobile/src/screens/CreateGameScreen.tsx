@@ -22,7 +22,7 @@ export function CreateGameScreen({
   const [lobbyName, setLobbyName] = useState(`Игра ${defaultName}`.slice(0, 24));
   const [isPrivate, setIsPrivate] = useState(false);
   const [maxPlayers, setMaxPlayers] = useState(8);
-  const [hostLevel, setHostLevel] = useState<HostLevel>("normal");
+  const hostLevel: HostLevel = "normal";
   const [mode, setMode] = useState<GameMode>(GameMode.Classic);
 
   // Режимы: id, ключ подписи, доступен ли (ai/board — бета/скоро).
@@ -86,24 +86,6 @@ export function CreateGameScreen({
           </Pressable>
         </View>
 
-        <Text style={styles.label}>{t("create.host")}</Text>
-        <View style={styles.row}>
-          {([["off", t("create.hostOff")], ["normal", t("create.hostNormal")], ["savage", t("create.hostSavage")]] as [HostLevel, string][]).map(
-            ([lvl, lbl]) => (
-              <Pressable
-                key={lvl}
-                style={[styles.seg, hostLevel === lvl && styles.segOn]}
-                onPress={() => setHostLevel(lvl)}
-              >
-                <Text style={[styles.segText, hostLevel === lvl && styles.segTextOn]}>{lbl}</Text>
-              </Pressable>
-            )
-          )}
-        </View>
-        {hostLevel === "savage" && (
-          <Text style={styles.warn}>{t("create.savageWarn")}</Text>
-        )}
-
         <Pressable
           style={({ pressed }) => [styles.create, pressed && { transform: [{ scale: 0.98 }] }, connecting && styles.dim]}
           disabled={connecting}
@@ -137,7 +119,6 @@ const styles = StyleSheet.create({
   step: { width: 52, height: 52, borderRadius: 12, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
   stepText: { color: colors.text, fontSize: 26, fontWeight: "800" },
   maxNum: { color: colors.text, fontSize: 22, fontWeight: "800", minWidth: 40, textAlign: "center" },
-  warn: { color: colors.yellow, fontSize: 12, marginTop: 8 },
   create: { backgroundColor: colors.accent, borderRadius: 14, padding: 16, alignItems: "center", marginTop: 24 },
   createText: { color: "#10210a", fontSize: 16, fontWeight: "800" },
   dim: { opacity: 0.6 },
