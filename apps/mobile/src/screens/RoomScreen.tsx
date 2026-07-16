@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet, ScrollView } from "react-native";
 import { colors } from "../theme";
 import { LiveKitVideo } from "../video/LiveKitVideo";
 import { BoardCanvas } from "../board/BoardCanvas";
+import { QuizOverlay } from "../components/QuizOverlay";
 import { playSound, playGag } from "../sound";
 import { speak, stopSpeak } from "../speak";
 import { recordMatch } from "../stats";
@@ -35,6 +36,9 @@ export function RoomScreen({
   onJudgeCard,
   sendBoardOp,
   subscribeBoard,
+  quizQuestion,
+  quizResult,
+  onQuizVote,
 }: {
   snapshot: GameSnapshot;
   mySessionId: string;
@@ -55,6 +59,9 @@ export function RoomScreen({
   onJudgeCard: (targetId: string) => void;
   sendBoardOp: (op: any) => void;
   subscribeBoard: (fn: (op: any) => void) => () => void;
+  quizQuestion: import("@pokerface/shared").QuizQuestionPayload | null;
+  quizResult: import("@pokerface/shared").QuizResultPayload | null;
+  onQuizVote: (qid: string, optionId: string) => void;
 }) {
   useLang();
   const me = snapshot.players.find((p) => p.id === mySessionId);
@@ -414,6 +421,17 @@ export function RoomScreen({
         <View style={styles.fxToast} pointerEvents="none">
           <Text style={styles.fxToastText}>{t("game.gag", { name: itemEffect.fromName })}</Text>
         </View>
+      ) : null}
+
+      {/* Викторина: вопрос → вскрытие голосов (детект улыбки идёт как обычно) */}
+      {snapshot.mode === "quiz" && roundActive ? (
+        <QuizOverlay
+          question={quizQuestion}
+          result={quizResult}
+          myId={mySessionId}
+          players={snapshot.players}
+          onVote={onQuizVote}
+        />
       ) : null}
 
       {/* Анти-чит: предупреждение, если я прячу лицо */}

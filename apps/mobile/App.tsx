@@ -70,6 +70,9 @@ export default function App() {
         onJudgeCard={game.judgeCard}
         sendBoardOp={game.sendBoardOp}
         subscribeBoard={game.subscribeBoard}
+        quizQuestion={game.quizQuestion}
+        quizResult={game.quizResult}
+        onQuizVote={game.sendQuizVote}
       />
     );
   } else if (route === "create") {

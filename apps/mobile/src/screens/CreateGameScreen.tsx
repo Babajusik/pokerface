@@ -30,6 +30,7 @@ export function CreateGameScreen({
     { id: GameMode.Classic, label: t("mode.classic") },
     { id: GameMode.Judge, label: t("mode.judge") },
     { id: GameMode.Board, label: t("mode.board") },
+    { id: GameMode.Quiz, label: t("mode.quiz") },
     { id: GameMode.AI, label: t("mode.ai"), beta: true },
   ];
 

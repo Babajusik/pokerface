@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Client, Room } from "colyseus.js";
-import { ClientMsg, ServerMsg, Phase, HostLevel, GameMode } from "@pokerface/shared";
+import {
+  ClientMsg, ServerMsg, Phase, HostLevel, GameMode,
+  QUIZ_CONFIG, type QuizQuestionPayload, type QuizResultPayload,
+} from "@pokerface/shared";
 import { SERVER_ENDPOINT, TOKEN_BASE } from "./config";
 import { getIdentity } from "./friends";
 import { t } from "../i18n";
@@ -78,6 +81,9 @@ export function useGame() {
   }>({ itemId: "", fromName: "", ts: 0 });
   // % улыбки игроков — приходит ТОЛЬКО судье (режим judge).
   const [smileLevels, setSmileLevels] = useState<Record<string, number>>({});
+  // Викторина (режим quiz): активный вопрос и вскрытие результатов.
+  const [quizQuestion, setQuizQuestion] = useState<QuizQuestionPayload | null>(null);
+  const [quizResult, setQuizResult] = useState<QuizResultPayload | null>(null);
   const roomRef = useRef<Room | null>(null);
   const clientRef = useRef<Client | null>(null);
   const intentionalRef = useRef(false);          // true = пользователь сам вышел
@@ -143,6 +149,16 @@ export function useGame() {
       });
       room.onMessage(ServerMsg.BoardOp, (op: any) => {
         boardListenersRef.current.forEach((fn) => fn(op));
+      });
+      room.onMessage(ServerMsg.QuizQuestion, (q: QuizQuestionPayload) => {
+        setQuizResult(null);
+        setQuizQuestion(q);
+      });
+      room.onMessage(ServerMsg.QuizResult, (r: QuizResultPayload) => {
+        setQuizQuestion(null);
+        setQuizResult(r);
+        // вскрытие висит недолго, потом само уходит
+        setTimeout(() => setQuizResult((cur) => (cur?.qid === r.qid ? null : cur)), QUIZ_CONFIG.revealMs);
       });
       room.onLeave((code: number) => {
         roomRef.current = null;
@@ -289,6 +305,11 @@ export function useGame() {
     roomRef.current?.send(ClientMsg.JudgeCard, { targetId });
   }, []);
 
+  // ── Режим «викторина» ──
+  const sendQuizVote = useCallback((qid: string, optionId: string) => {
+    roomRef.current?.send(ClientMsg.QuizVote, { qid, optionId });
+  }, []);
+
   // ── Режим «доска» ──
   const sendBoardOp = useCallback((op: any) => {
     roomRef.current?.send(ClientMsg.BoardOp, op);
@@ -335,6 +356,7 @@ export function useGame() {
 
   return {
     status, error, snapshot, mySessionId, roomId, taunt, itemEffect, smileLevels,
+    quizQuestion, quizResult, sendQuizVote,
     createGame, joinById, joinByCode, quickPlay,
     setReady, setMediaReady, reportFace, setJudge, sendSmileLevel, judgeCard,
     sendBoardOp, subscribeBoard,

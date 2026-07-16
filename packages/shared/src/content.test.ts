@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   JOKES, HOST_LEVELS, pickJoke, type JokeCtx,
   ITEMS, itemCharges, randomMeme, randomSticker, MEMES, STICKERS,
+  QUIZ_PROMPTS, pickQuizPrompt,
 } from "./index";
 
 // Подменяем Math.random на детерминированное значение на время колбэка.
@@ -75,4 +76,35 @@ test("randomMeme/randomSticker: всегда из своего набора", ()
 test("randomMeme: границы random → первый и последний", () => {
   assert.equal(withRandom(0, randomMeme), MEMES[0]);
   assert.equal(withRandom(0.999999, randomMeme), MEMES[MEMES.length - 1]);
+});
+
+test("QUIZ_PROMPTS: id уникальны, форма по типу корректна", () => {
+  const ids = QUIZ_PROMPTS.map((p) => p.id);
+  assert.equal(new Set(ids).size, ids.length, "дубли id вопросов");
+  for (const p of QUIZ_PROMPTS) {
+    assert.ok(p.text.trim().length > 0, `${p.id}: пустой текст`);
+    if (p.kind === "options") {
+      assert.ok((p.options?.length ?? 0) >= 2, `${p.id}: нужно ≥2 вариантов`);
+    } else {
+      // «кто скорее всего» — варианты подставляются игроками на сервере
+      assert.equal(p.options, undefined, `${p.id}: у kind=who не должно быть options`);
+    }
+  }
+});
+
+test("pickQuizPrompt: не повторяет использованные, пока банк не исчерпан", () => {
+  const used: string[] = [];
+  for (let i = 0; i < QUIZ_PROMPTS.length; i++) {
+    const p = pickQuizPrompt(used);
+    assert.ok(!used.includes(p.id), `повтор вопроса ${p.id}`);
+    used.push(p.id);
+  }
+  // банк исчерпан → начинает заново, а не падает
+  const again = pickQuizPrompt(used);
+  assert.ok(QUIZ_PROMPTS.some((p) => p.id === again.id));
+});
+
+test("pickQuizPrompt: пустой список использованных — просто отдаёт вопрос", () => {
+  const p = pickQuizPrompt();
+  assert.ok(QUIZ_PROMPTS.some((x) => x.id === p.id));
 });

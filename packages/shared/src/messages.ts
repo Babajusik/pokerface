@@ -15,6 +15,7 @@ export const GameMode = {
   Judge: "judge",     // ведущий-человек судит и выдаёт карточки
   AI: "ai",           // ИИ-ведущий (бета)
   Board: "board",     // интерактивная доска — рассмешить других
+  Quiz: "quiz",       // викторина-опрос как провокация (детект улыбки работает)
 } as const;
 export type GameMode = (typeof GameMode)[keyof typeof GameMode];
 
@@ -32,6 +33,7 @@ export const ClientMsg = {
   SmileLevel: "smile_level",   // игрок шлёт свой % улыбки (сервер relay судье)
   JudgeCard: "judge_card",     // судья выдаёт карточку игроку
   BoardOp: "board_op",         // операция на доске (режим board): штрих/текст/очистка
+  QuizVote: "quiz_vote",       // голос за вариант в викторине (режим quiz)
 } as const;
 
 /** Сервер → Клиент (поверх авто-синка состояния комнаты). */
@@ -44,7 +46,26 @@ export const ServerMsg = {
   ItemUsed: "item_used",
   SmileLevel: "smile_level", // сервер → судья: % улыбки конкретного игрока
   BoardOp: "board_op",       // сервер → все: операция на доске (relay)
+  QuizQuestion: "quiz_question", // сервер → все: новый вопрос викторины
+  QuizResult: "quiz_result",     // сервер → все: вскрытие голосов (момент ржача)
 } as const;
+
+/** Викторина (режим quiz). */
+export interface QuizOption { id: string; label: string }
+export interface QuizQuestionPayload {
+  qid: string;            // id раунда вопроса (для сверки голосов)
+  text: string;
+  options: QuizOption[];
+  endsAt: number;         // до какого времени принимаются голоса (ms epoch)
+}
+export interface QuizResultPayload {
+  qid: string;
+  text: string;
+  counts: Record<string, number>;   // optionId -> сколько голосов
+  votes: Record<string, string>;    // playerId -> optionId (кто как проголосовал)
+  winnerOptionId: string;           // вариант-победитель ("" если голосов нет)
+  options: QuizOption[];
+}
 
 /** Цвет карточки по количеству. */
 export type CardColor = "yellow" | "red";

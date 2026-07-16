@@ -4,6 +4,7 @@ import {
   GAME_CONFIG, Phase, ClientMsg, ServerMsg, GameMode,
   pickJoke, HostLevel, JokeCtx,
   ITEMS, ItemId, ITEM_COOLDOWN_MS, randomMeme, randomSticker,
+  pickQuizPrompt, QUIZ_CONFIG, QuizOption,
 } from "@pokerface/shared";
 import {
   isContestant as isContestantOf, cardColor, isEliminated,
@@ -39,6 +40,11 @@ export class GameRoom extends Room<GameState> {
   private startedAt = 0;
   private tauntTimer?: any;
   private hideTimer?: any;
+  // Викторина (режим quiz): текущий вопрос живёт на сервере, не в синк-состоянии.
+  private quizTimer?: any;
+  private quizRevealTimer?: any;
+  private quiz?: { qid: string; text: string; options: QuizOption[]; votes: Map<string, string> };
+  private quizUsed: string[] = [];
   private itemState = new Map<string, { lastAt: number; uses: Record<string, number> }>();
   private msgRate = new Map<string, number[]>();
 
@@ -146,6 +152,61 @@ export class GameRoom extends Room<GameState> {
       const payload = { ...op, from: p?.name || "" };
       this.broadcast(ServerMsg.BoardOp, payload, { except: client });
     });
+
+    // ── Режим «викторина»: голос за вариант ──
+    this.onMessage(ClientMsg.QuizVote, (client, msg: { qid?: string; optionId?: string }) => {
+      if (this.rateLimited(client)) return;
+      if (this.state.mode !== GameMode.Quiz || this.state.phase !== Phase.Playing) return;
+      const q = this.quiz;
+      if (!q || msg?.qid !== q.qid) return; // вопрос уже закрыт/не тот
+      const p = this.state.players.get(client.sessionId);
+      if (!p || p.eliminated) return;
+      const oid = String(msg?.optionId || "");
+      if (!q.options.some((o) => o.id === oid)) return; // неизвестный вариант
+      q.votes.set(client.sessionId, oid); // переголосовать можно до вскрытия
+    });
+  }
+
+  // Задать новый вопрос викторины (всем). Варианты для "who" — живые игроки.
+  private askQuiz() {
+    if (this.state.phase !== Phase.Playing || this.state.mode !== GameMode.Quiz) return;
+    if (this.quiz) return; // предыдущий вопрос ещё идёт
+    const prompt = pickQuizPrompt(this.quizUsed);
+    let options: QuizOption[];
+    if (prompt.kind === "who") {
+      const alive = [...this.state.players.values()].filter((p) => !p.eliminated);
+      if (alive.length < 2) return; // не о ком спрашивать
+      options = alive.map((p) => ({ id: p.id, label: p.name }));
+    } else {
+      options = (prompt.options || []).map((label, i) => ({ id: `o${i}`, label }));
+    }
+    this.quizUsed.push(prompt.id);
+    if (this.quizUsed.length > 12) this.quizUsed.shift(); // не копим бесконечно
+    const qid = Math.random().toString(36).slice(2, 10);
+    this.quiz = { qid, text: prompt.text, options, votes: new Map() };
+    this.broadcast(ServerMsg.QuizQuestion, {
+      qid, text: prompt.text, options, endsAt: Date.now() + QUIZ_CONFIG.answerMs,
+    });
+    this.quizRevealTimer = this.clock.setTimeout(() => this.revealQuiz(), QUIZ_CONFIG.answerMs);
+  }
+
+  // Вскрытие голосов — тот самый момент, когда все ржут (и ловят карточки).
+  private revealQuiz() {
+    const q = this.quiz;
+    this.quiz = undefined;
+    if (!q || this.state.phase !== Phase.Playing) return;
+    const counts: Record<string, number> = {};
+    const votes: Record<string, string> = {};
+    for (const [pid, oid] of q.votes) {
+      votes[pid] = oid;
+      counts[oid] = (counts[oid] || 0) + 1;
+    }
+    let winnerOptionId = "";
+    let best = 0;
+    for (const oid in counts) if (counts[oid] > best) { best = counts[oid]; winnerOptionId = oid; }
+    this.broadcast(ServerMsg.QuizResult, {
+      qid: q.qid, text: q.text, counts, votes, winnerOptionId, options: q.options,
+    });
   }
 
   // Является ли игрок участником (в режиме судьи судья — не участник).
@@ -248,6 +309,15 @@ export class GameRoom extends Room<GameState> {
       this.hideTimer.clear();
       this.hideTimer = undefined;
     }
+    if (this.quizTimer) {
+      this.quizTimer.clear();
+      this.quizTimer = undefined;
+    }
+    if (this.quizRevealTimer) {
+      this.quizRevealTimer.clear();
+      this.quizRevealTimer = undefined;
+    }
+    this.quiz = undefined;
   }
 
   private tryStart(client: Client) {
@@ -278,6 +348,11 @@ export class GameRoom extends Room<GameState> {
     this.taunt("hype");
     this.tauntTimer = this.clock.setInterval(() => this.taunt("hype"), 9000);
     this.hideTimer = this.clock.setInterval(() => this.checkHiding(), 1000);
+    if (this.state.mode === GameMode.Quiz) {
+      this.quizUsed = [];
+      this.clock.setTimeout(() => this.askQuiz(), 4000); // первый вопрос — пораньше
+      this.quizTimer = this.clock.setInterval(() => this.askQuiz(), QUIZ_CONFIG.askIntervalMs);
+    }
   }
 
   private resetItems() {
