@@ -4,6 +4,7 @@ import { colors } from "../theme";
 import { getStats } from "../stats";
 import { TOKEN_BASE } from "../net/config";
 import { listInvites, clearInvite, getIdentity, type Invite } from "../net/friends";
+import { isStandalone } from "../install";
 import { t, useLang } from "../i18n";
 
 export function MainMenuScreen({
@@ -15,6 +16,7 @@ export function MainMenuScreen({
   onFind,
   onJoinRoom,
   onFriends,
+  onDownloads,
   onSettings,
 }: {
   name: string;
@@ -25,6 +27,7 @@ export function MainMenuScreen({
   onFind: () => void;
   onJoinRoom: (room: string) => void;
   onFriends: () => void;
+  onDownloads: () => void;
   onSettings: () => void;
 }) {
   useLang();
@@ -155,6 +158,12 @@ export function MainMenuScreen({
             <Text style={styles.btn2Text}>{t("menu.settings")}</Text>
           </Pressable>
         </View>
+        {/* Уже запущено как приложение — предлагать скачивание незачем */}
+        {!isStandalone() && (
+          <Pressable style={styles.ghost} onPress={onDownloads}>
+            <Text style={styles.ghostText}>{t("menu.download")}</Text>
+          </Pressable>
+        )}
       </View>
 
       {error ? <Text style={styles.err}>{error}</Text> : !ready ? (

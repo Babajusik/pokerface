@@ -170,6 +170,26 @@ GIF-поиск работал из РФ без VPN и ключ GIPHY не све
 
 ---
 
+## Раздача установщиков (`/dl/*`)
+
+Нативные сборки лежат на VPS, а не на GitHub Releases — GitHub режется из РФ,
+игроки бы не скачали. VPS в РФ, отдаёт быстро и без VPN.
+
+- Файлы: `/opt/livekit/downloads/` → `PokerFace-setup.exe` (Windows, Tauri NSIS)
+  и `PokerFace.apk` (Android, Capacitor).
+- **Caddyfile** — `handle_path /dl/* { root * /srv/downloads; file_server }`
+  (до финального catch-all). В compose у `caddy` примонтировано `./downloads:/srv/downloads`.
+- Клиент берёт ссылки из `apps/mobile/src/install.ts` (`EXPO_PUBLIC_DOWNLOADS`
+  переопределяет базу, по умолчанию `https://pokerface-lk.duckdns.org/dl`).
+- **Обновить сборки** — просто перезалить файлы (Caddy отдаёт их с диска):
+  ```
+  ssh root@VPS 'cat > /opt/livekit/downloads/PokerFace-setup.exe' < desktop/src-tauri/target/release/bundle/nsis/PokerFace_0.1.0_x64-setup.exe
+  ssh root@VPS 'cat > /opt/livekit/downloads/PokerFace.apk'      < android-app/android/app/build/outputs/apk/debug/app-debug.apk
+  ```
+  Перезапуск Caddy не нужен.
+
+---
+
 ## Заметки
 - Один небольшой VPS тянет несколько лобби (видео идёт через SFU, нагрузка в
   основном на трафик, не на CPU).
