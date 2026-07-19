@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { Room, RoomEvent, Track, LocalVideoTrack, LocalAudioTrack, RemoteTrack } from "livekit-client";
 import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
+import { BLINK_CONFIG } from "@pokerface/shared";
 import { TOKEN_BASE } from "../net/config";
 import { SmileDetector } from "../smile/SmileDetector";
 import { getSettings } from "../settings";
@@ -242,6 +243,12 @@ export function LiveKitVideo({
       smileFramesToTrigger: getSettings().smileFrames,
     })
   );
+  const blinkRef = useRef(
+    new SmileDetector({
+      smileThreshold: BLINK_CONFIG.blinkThreshold,
+      smileFramesToTrigger: BLINK_CONFIG.blinkFramesToTrigger,
+    })
+  );
   const [smileProb, setSmileProb] = useState(0);
   const onSmileRef = useRef(onSmile);
   useEffect(() => {
@@ -266,6 +273,7 @@ export function LiveKitVideo({
     let lm: FaceLandmarker | null = null;
     let lastT = -1;
     smileRef.current.reset();
+    blinkRef.current.reset();
     faceReportedRef.current = true;
     faceGoneSinceRef.current = 0;
 
@@ -296,19 +304,27 @@ export function LiveKitVideo({
         const result = lm.detectForVideo(v, now);
         const shapes = result.faceBlendshapes;
         let p = 0;
+        let blinkP = 0;
         let face = false;
         if (shapes && shapes.length > 0) {
           face = true;
           let l = 0;
           let r = 0;
+          let bl = 0;
+          let br = 0;
           for (const c of shapes[0].categories) {
             if (c.categoryName === "mouthSmileLeft") l = c.score;
             else if (c.categoryName === "mouthSmileRight") r = c.score;
+            else if (c.categoryName === "eyeBlinkLeft") bl = c.score;
+            else if (c.categoryName === "eyeBlinkRight") br = c.score;
           }
           p = (l + r) / 2;
+          blinkP = (bl + br) / 2;
         }
-        setSmileProb(p);
-        if (smileRef.current.push(p, face, now)) onSmileRef.current?.();
+        const isBlinkMode = modeRef.current === "blink";
+        setSmileProb(isBlinkMode ? blinkP : p);
+        const detector = isBlinkMode ? blinkRef.current : smileRef.current;
+        if (detector.push(isBlinkMode ? blinkP : p, face, now)) onSmileRef.current?.();
         // Режим судьи: шлём свой % судье (через сервер), не чаще ~5/сек.
         if (modeRef.current === "judge" && onSmileLevelRef.current) {
           if (now - lastLevelSentRef.current > 200) {

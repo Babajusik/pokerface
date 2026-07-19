@@ -100,6 +100,7 @@ const ru: Dict = {
   "mode.ai": "ИИ-ведущий",
   "mode.board": "Доска",
   "mode.quiz": "Викторина",
+  "mode.blink": "Мигалка",
   "mode.beta": "скоро",
   "mode.betaTag": "бета",
   // викторина
@@ -287,6 +288,7 @@ const en: Dict = {
   "mode.ai": "AI host",
   "mode.board": "Board",
   "mode.quiz": "Quiz",
+  "mode.blink": "Blink",
   "mode.beta": "soon",
   "mode.betaTag": "beta",
   "quiz.badge": "Quiz",

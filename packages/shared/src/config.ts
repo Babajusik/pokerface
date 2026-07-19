@@ -6,6 +6,11 @@ export const SMILE_CONFIG = {
   smileFramesToTrigger: 5,   // кадров подряд выше порога = улыбка (детект на клиенте)
 } as const;
 
+export const BLINK_CONFIG = {
+  blinkThreshold: 0.5,       // порог вероятности закрытого глаза [0..1]
+  blinkFramesToTrigger: 2,   // моргание короче улыбки — хватает 2 кадров подряд
+} as const;
+
 export const GAME_CONFIG = {
   maxCards: 2,               // 2-я карточка (красная) = вылет
   cardCooldownMs: 2500,      // нельзя получить 2 карточки за один смех

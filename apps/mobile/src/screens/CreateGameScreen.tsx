@@ -28,6 +28,7 @@ export function CreateGameScreen({
   // Режимы: id, ключ подписи, доступен ли (ai/board — бета/скоро).
   const modes: { id: GameMode; label: string; beta?: boolean; soon?: boolean }[] = [
     { id: GameMode.Classic, label: t("mode.classic") },
+    { id: GameMode.Blink, label: t("mode.blink") },
     { id: GameMode.Judge, label: t("mode.judge") },
     { id: GameMode.Board, label: t("mode.board") },
     { id: GameMode.Quiz, label: t("mode.quiz") },

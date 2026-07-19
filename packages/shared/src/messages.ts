@@ -16,6 +16,7 @@ export const GameMode = {
   AI: "ai",           // ИИ-ведущий (бета)
   Board: "board",     // интерактивная доска — рассмешить других
   Quiz: "quiz",       // викторина-опрос как провокация (детект улыбки работает)
+  Blink: "blink",     // кто первым моргнул — карточка (детект моргания вместо улыбки)
 } as const;
 export type GameMode = (typeof GameMode)[keyof typeof GameMode];
 
