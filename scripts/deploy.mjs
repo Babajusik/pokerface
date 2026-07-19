@@ -77,7 +77,7 @@ cp -r apps/mobile/public/mediapipe server/game/public/
 rm -f /tmp/pfweb-deploy.tgz
 echo "  веб: $(cat server/game/public/version.json)"
 
-cd /opt/livekit && docker compose up -d game >/dev/null 2>&1
+cd /opt/livekit && docker compose restart game >/dev/null 2>&1
 sleep 4
 docker compose ps --format '{{.Name}} {{.Status}}' | grep game
 `;
