@@ -167,6 +167,27 @@ export class GameRoom extends Room<GameState> {
       if (!q.options.some((o) => o.id === oid)) return; // неизвестный вариант
       q.votes.set(client.sessionId, oid); // переголосовать можно до вскрытия
     });
+
+    // ── Режим «заморозка» ──
+    // Пойманный игрок прислал URL своего клипа (загружен на VPS им самим).
+    this.onMessage(ClientMsg.ClipReady, (client, msg: { url?: string }) => {
+      if (this.rateLimited(client)) return;
+      if (this.state.mode !== GameMode.Freeze || !this.state.frozen) return;
+      if (client.sessionId !== this.state.frozenPlayerId) return;
+      const url = String(msg?.url || "");
+      if (!url.startsWith("https://") || url.length > 300) return;
+      this.state.frozenClipUrl = url;
+    });
+
+    // Игрок нажал «Продолжить» после паузы.
+    this.onMessage(ClientMsg.ContinueRound, (client) => {
+      if (this.rateLimited(client)) return;
+      if (this.state.mode !== GameMode.Freeze || !this.state.frozen) return;
+      const p = this.state.players.get(client.sessionId);
+      if (!p || p.eliminated) return;
+      p.continueReady = true;
+      this.checkContinueReady();
+    });
   }
 
   // Задать новый вопрос викторины (всем). Варианты для "who" — живые игроки.
@@ -268,6 +289,16 @@ export class GameRoom extends Room<GameState> {
       this.state.hostId = [...this.state.players.keys()][0] || "";
     }
     if (this.state.judgeId === sessionId) this.state.judgeId = ""; // судья вышел — снимаем
+    if (this.state.frozen) {
+      if (sessionId === this.state.frozenPlayerId) {
+        // источник момента пропал — клипа не будет, снимаем паузу сразу
+        this.state.frozen = false;
+        this.state.frozenPlayerId = "";
+        this.state.frozenClipUrl = "";
+      } else {
+        this.checkContinueReady(); // ушедший не должен блокировать остальных
+      }
+    }
     if (this.state.phase === Phase.Playing) this.checkWinner();
   }
 
@@ -372,12 +403,18 @@ export class GameRoom extends Room<GameState> {
       p.faceVisible = true;
       p.faceLostAt = 0;
       p.hidingWarn = false;
+      p.continueReady = false;
     }
     this.state.winnerId = "";
+    this.state.frozen = false;
+    this.state.frozenPlayerId = "";
+    this.state.frozenClipUrl = "";
     this.resetItems();
     this.setPhase(Phase.Playing);
     this.taunt("hype");
-    this.tauntTimer = this.clock.setInterval(() => this.taunt("hype"), 9000);
+    this.tauntTimer = this.clock.setInterval(() => {
+      if (!this.state.frozen) this.taunt("hype");
+    }, 9000);
     this.hideTimer = this.clock.setInterval(() => this.checkHiding(), 1000);
     if (this.state.mode === GameMode.Quiz) {
       this.quizUsed = [];
@@ -437,8 +474,40 @@ export class GameRoom extends Room<GameState> {
     if (this.state.mode === GameMode.Judge) return; // в режиме судьи карточки выдаёт человек
     const p = this.state.players.get(client.sessionId);
     if (!p || p.eliminated) return;
+    if (this.state.mode === GameMode.Freeze) {
+      if (this.state.frozen) return; // раунд на паузе — лишние улыбки не считаются
+      this.freezeRound(p);
+      return;
+    }
     if (Date.now() - p.lastCardAt < GAME_CONFIG.cardCooldownMs) return; // кулдаун
     this.addCard(p);
+  }
+
+  // Режим «заморозка»: первому улыбнувшемуся — карточка, раунд встаёт на паузу
+  // до клипа и ready-check всех живых игроков (см. handleSmile/ContinueRound).
+  private freezeRound(p: Player) {
+    this.state.frozen = true;
+    this.state.frozenPlayerId = p.id;
+    this.state.frozenClipUrl = "";
+    for (const pl of this.state.players.values()) pl.continueReady = false;
+    this.addCard(p);
+    if (this.state.phase !== Phase.Playing) {
+      // игра закончилась на этой же карточке — ready-check уже не нужен
+      this.state.frozen = false;
+      this.state.frozenPlayerId = "";
+    }
+  }
+
+  // Раунд возобновляется, когда все живые (и на связи) игроки нажали «продолжить».
+  private checkContinueReady() {
+    if (!this.state.frozen) return;
+    const alive = aliveContestants([...this.state.players.values()], this.state.mode, this.state.judgeId)
+      .filter((p) => p.connected);
+    if (alive.length > 0 && alive.every((p) => p.continueReady)) {
+      this.state.frozen = false;
+      this.state.frozenPlayerId = "";
+      this.state.frozenClipUrl = "";
+    }
   }
 
   // Выдать карточку (улыбка ИЛИ скрытое лицо) + обработать вылет/победителя.
@@ -467,6 +536,7 @@ export class GameRoom extends Room<GameState> {
   private checkHiding() {
     if (this.state.phase !== Phase.Playing) return;
     if (this.state.mode === GameMode.Judge) return; // в режиме судьи следит человек
+    if (this.state.frozen) return; // игра на паузе — не штрафуем
     const now = Date.now();
     for (const p of this.state.players.values()) {
       if (p.eliminated || p.faceVisible || !p.faceLostAt) continue;

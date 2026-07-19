@@ -102,6 +102,8 @@ export default function App() {
         quizQuestion={game.quizQuestion}
         quizResult={game.quizResult}
         onQuizVote={game.sendQuizVote}
+        onContinueRound={game.continueRound}
+        onClipReady={game.sendClipReady}
       />
     );
   } else if (route === "create") {

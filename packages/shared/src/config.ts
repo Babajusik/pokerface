@@ -11,6 +11,10 @@ export const BLINK_CONFIG = {
   blinkFramesToTrigger: 2,   // моргание короче улыбки — хватает 2 кадров подряд
 } as const;
 
+export const FREEZE_CONFIG = {
+  clipRecordMs: 2500,        // сколько писать клип пойманного игрока после паузы
+} as const;
+
 export const GAME_CONFIG = {
   maxCards: 2,               // 2-я карточка (красная) = вылет
   cardCooldownMs: 2500,      // нельзя получить 2 карточки за один смех

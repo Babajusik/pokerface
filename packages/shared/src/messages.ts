@@ -17,6 +17,7 @@ export const GameMode = {
   Board: "board",     // интерактивная доска — рассмешить других
   Quiz: "quiz",       // викторина-опрос как провокация (детект улыбки работает)
   Blink: "blink",     // кто первым моргнул — карточка (детект моргания вместо улыбки)
+  Freeze: "freeze",   // пауза на первой улыбке: карточка только первому, клип, ready-check
 } as const;
 export type GameMode = (typeof GameMode)[keyof typeof GameMode];
 
@@ -35,6 +36,8 @@ export const ClientMsg = {
   JudgeCard: "judge_card",     // судья выдаёт карточку игроку
   BoardOp: "board_op",         // операция на доске (режим board): штрих/текст/очистка
   QuizVote: "quiz_vote",       // голос за вариант в викторине (режим quiz)
+  ContinueRound: "continue_round", // режим freeze: игрок готов продолжить после паузы
+  ClipReady: "clip_ready",         // режим freeze: пойманный игрок прислал URL своего клипа
 } as const;
 
 /** Сервер → Клиент (поверх авто-синка состояния комнаты). */

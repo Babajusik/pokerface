@@ -2,13 +2,14 @@ import React, { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { Room, RoomEvent, Track, LocalVideoTrack, LocalAudioTrack, RemoteTrack } from "livekit-client";
 import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
-import { BLINK_CONFIG } from "@pokerface/shared";
+import { BLINK_CONFIG, FREEZE_CONFIG } from "@pokerface/shared";
 import { TOKEN_BASE } from "../net/config";
 import { SmileDetector } from "../smile/SmileDetector";
 import { getSettings } from "../settings";
 import { colors } from "../theme";
 import type { PlayerView } from "../net/useGame";
 import { t, useLang } from "../i18n";
+import { uploadFile } from "../board/giphy";
 
 // Видео-сетка (web) + детект улыбки.
 // Камера открывается ОДИН раз через getUserMedia: эта же дорожка идёт и в детект
@@ -38,6 +39,11 @@ export function LiveKitVideo({
   smileLevels = {},
   onSmileLevel,
   onJudgeCard,
+  frozen = false,
+  frozenPlayerId = "",
+  frozenClipUrl = "",
+  onClipReady,
+  onContinue,
 }: {
   roomName: string;
   identity: string;
@@ -54,6 +60,11 @@ export function LiveKitVideo({
   smileLevels?: Record<string, number>;
   onSmileLevel?: (p: number) => void;
   onJudgeCard?: (targetId: string) => void;
+  frozen?: boolean;
+  frozenPlayerId?: string;
+  frozenClipUrl?: string;
+  onClipReady?: (url: string) => void;
+  onContinue?: () => void;
 }) {
   useLang();
   const roomRef = useRef<Room | null>(null);
@@ -405,6 +416,36 @@ export function LiveKitVideo({
     if (!me?.eliminated) elimRef.current = false;
   }, [players, identity]);
 
+  // --- Режим «заморозка»: короткая запись реакции пойманного сразу после паузы ---
+  const freezeSentRef = useRef(false);
+  useEffect(() => {
+    if (mode !== "freeze") return;
+    if (!frozen) {
+      freezeSentRef.current = false;
+      return;
+    }
+    if (frozenPlayerId !== identity || freezeSentRef.current) return;
+    freezeSentRef.current = true;
+    const stream = localStreamRef.current;
+    if (!stream) return;
+    try {
+      const chunks: Blob[] = [];
+      const rec = new MediaRecorder(stream, { mimeType: "video/webm" });
+      rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+      rec.onstop = async () => {
+        try {
+          const blob = new Blob(chunks, { type: "video/webm" });
+          const url = await uploadFile(new File([blob], "pokerface-catch.webm", { type: "video/webm" }));
+          onClipReady?.(url);
+        } catch {}
+      };
+      rec.start();
+      setTimeout(() => {
+        try { rec.stop(); } catch {}
+      }, FREEZE_CONFIG.clipRecordMs);
+    } catch {}
+  }, [frozen, frozenPlayerId, identity, mode]);
+
   function shareClip() {
     fetch(clipUrl)
       .then((r) => r.blob())
@@ -418,6 +459,10 @@ export function LiveKitVideo({
   const judgeMode = mode === "judge";
   const myIsJudge = judgeMode && identity === judgeId; // я — судья
   const screen = judgeScreenStream();                  // экран ведущего (если транслирует)
+  const frozenName = players.find((p) => p.id === frozenPlayerId)?.name || "";
+  const myContinueReady = players.find((p) => p.id === identity)?.continueReady || false;
+  const aliveCount = players.filter((p) => !p.eliminated).length;
+  const readyCount = players.filter((p) => !p.eliminated && p.continueReady).length;
 
   if (status === "disabled") {
     return (
@@ -483,6 +528,33 @@ export function LiveKitVideo({
           </View>
         </View>
       ) : null}
+
+      {mode === "freeze" && frozen && (
+        <View style={styles.freezePanel}>
+          <Text style={styles.freezeTitle}>{t("freeze.caught", { name: frozenName })}</Text>
+          {frozenClipUrl
+            ? React.createElement("video", {
+                src: frozenClipUrl,
+                controls: true,
+                autoPlay: true,
+                loop: true,
+                muted: true,
+                style: { width: 240, borderRadius: 12, background: "#000" },
+              })
+            : <Text style={styles.freezeWait}>{t("freeze.preparing")}</Text>}
+          <Pressable
+            style={[styles.freezeBtn, myContinueReady && styles.freezeBtnOn]}
+            disabled={myContinueReady}
+            onPress={onContinue}
+          >
+            <Text style={[styles.freezeBtnText, myContinueReady && styles.freezeBtnTextOn]}>
+              {myContinueReady
+                ? t("freeze.waitingOthers", { ready: readyCount, total: aliveCount })
+                : t("freeze.continue")}
+            </Text>
+          </Pressable>
+        </View>
+      )}
 
       {cameraMsg ? <Text style={styles.note}>{cameraMsg}</Text> : null}
 
@@ -601,4 +673,14 @@ const styles = StyleSheet.create({
   clipBtns: { flexDirection: "row", gap: 10, marginTop: 10, alignItems: "center" },
   clipBtn: { backgroundColor: colors.yellow, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10 },
   clipBtnText: { color: "#1a1a1a", fontWeight: "700", fontSize: 14 },
+  freezePanel: {
+    alignItems: "center", padding: 16, marginBottom: 10, borderRadius: 14,
+    borderWidth: 2, borderColor: colors.accent, backgroundColor: "rgba(200,242,80,0.08)",
+  },
+  freezeTitle: { color: colors.text, fontSize: 18, fontWeight: "800", marginBottom: 10, textAlign: "center" },
+  freezeWait: { color: colors.muted, fontSize: 13, marginVertical: 20 },
+  freezeBtn: { backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 22, marginTop: 12 },
+  freezeBtnOn: { backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
+  freezeBtnText: { color: "#10210a", fontWeight: "800", fontSize: 14 },
+  freezeBtnTextOn: { color: colors.muted },
 });

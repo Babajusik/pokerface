@@ -30,6 +30,7 @@ export interface PlayerView {
   connected: boolean;
   mediaReady: boolean;
   hidingWarn: boolean;
+  continueReady: boolean;
 }
 
 export interface GameSnapshot {
@@ -42,11 +43,17 @@ export interface GameSnapshot {
   mode: string;
   judgeId: string;
   players: PlayerView[];
+  frozen: boolean;
+  frozenPlayerId: string;
+  frozenClipUrl: string;
 }
 
 export type Status = "idle" | "connecting" | "connected" | "reconnecting" | "error";
 
-const EMPTY: GameSnapshot = { phase: Phase.Lobby, lobbyName: "", code: "", maxPlayers: 8, hostId: "", winnerId: "", mode: "classic", judgeId: "", players: [] };
+const EMPTY: GameSnapshot = {
+  phase: Phase.Lobby, lobbyName: "", code: "", maxPlayers: 8, hostId: "", winnerId: "",
+  mode: "classic", judgeId: "", players: [], frozen: false, frozenPlayerId: "", frozenClipUrl: "",
+};
 
 // Превращаем ошибку подключения Colyseus в понятный игроку текст.
 // Коды матчмейкинга Colyseus: 4210–4214 (нет хендлера/невалидно/нет комнаты/…).
@@ -111,6 +118,7 @@ export function useGame() {
         connected: p.connected ?? true,
         mediaReady: p.mediaReady ?? false,
         hidingWarn: p.hidingWarn ?? false,
+        continueReady: p.continueReady ?? false,
       });
     });
     setSnapshot({
@@ -123,6 +131,9 @@ export function useGame() {
       mode: state.mode ?? "classic",
       judgeId: state.judgeId ?? "",
       players,
+      frozen: state.frozen ?? false,
+      frozenPlayerId: state.frozenPlayerId ?? "",
+      frozenClipUrl: state.frozenClipUrl ?? "",
     });
   }, []);
 
@@ -337,6 +348,14 @@ export function useGame() {
     roomRef.current?.send(ClientMsg.UseItem, { itemId, targetId });
   }, []);
 
+  // ── Режим «заморозка» ──
+  const continueRound = useCallback(() => {
+    roomRef.current?.send(ClientMsg.ContinueRound);
+  }, []);
+  const sendClipReady = useCallback((url: string) => {
+    roomRef.current?.send(ClientMsg.ClipReady, { url });
+  }, []);
+
   const leave = useCallback(() => {
     intentionalRef.current = true; // намеренный выход — не реконнектиться
     // Выходим мгновенно (не ждём ответ сервера), иначе UI «залипает» и кажется,
@@ -361,5 +380,6 @@ export function useGame() {
     setReady, setMediaReady, reportFace, setJudge, sendSmileLevel, judgeCard,
     sendBoardOp, subscribeBoard,
     startGame, rematch, smile, useItem, leave, reset,
+    continueRound, sendClipReady,
   };
 }

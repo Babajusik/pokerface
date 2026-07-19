@@ -39,6 +39,8 @@ export function RoomScreen({
   quizQuestion,
   quizResult,
   onQuizVote,
+  onContinueRound,
+  onClipReady,
 }: {
   snapshot: GameSnapshot;
   mySessionId: string;
@@ -62,6 +64,8 @@ export function RoomScreen({
   quizQuestion: import("@pokerface/shared").QuizQuestionPayload | null;
   quizResult: import("@pokerface/shared").QuizResultPayload | null;
   onQuizVote: (qid: string, optionId: string) => void;
+  onContinueRound: () => void;
+  onClipReady: (url: string) => void;
 }) {
   useLang();
   const me = snapshot.players.find((p) => p.id === mySessionId);
@@ -259,6 +263,11 @@ export function RoomScreen({
           smileLevels={smileLevels}
           onSmileLevel={onSmileLevel}
           onJudgeCard={onJudgeCard}
+          frozen={snapshot.frozen}
+          frozenPlayerId={snapshot.frozenPlayerId}
+          frozenClipUrl={snapshot.frozenClipUrl}
+          onClipReady={onClipReady}
+          onContinue={onContinueRound}
         />
         {snapshot.mode === "board" && roundActive ? (
           <BoardCanvas sendBoardOp={sendBoardOp} subscribeBoard={subscribeBoard} />

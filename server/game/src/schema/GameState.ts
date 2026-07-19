@@ -14,6 +14,7 @@ export class Player extends Schema {
   @type("boolean") mediaReady = false;   // камера+микрофон подключены (гейт старта)
   @type("boolean") hidingWarn = false;   // прячет лицо дольше грейса — предупреждение
   @type("uint32") survivedMs = 0;
+  @type("boolean") continueReady = false; // режим freeze: готов продолжить после паузы
 
   // серверное (не синкается):
   lastCardAt = 0;
@@ -32,4 +33,8 @@ export class GameState extends Schema {
   @type("uint32") roundStartedAt = 0;
   @type("string") winnerId = "";
   @type("string") tauntText = "";
+  // Режим freeze: раунд на паузе после первой улыбки.
+  @type("boolean") frozen = false;
+  @type("string") frozenPlayerId = "";
+  @type("string") frozenClipUrl = "";
 }
